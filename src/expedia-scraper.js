@@ -114,196 +114,238 @@ async function searchExpedia(params) {
 
 /**
  * Login to Expedia TAAP at www.expediataap.com.br
+ *
+ * Flow:
+ * 1. Open landing page (www.expediataap.com.br)
+ * 2. Click "Fazer Login" button on the central card
+ * 3. Fill "Endereço de e-mail" and "Senha"
+ * 4. Click "Fazer login" submit button
+ * 5. Wait for dashboard to load
  */
 async function login(page) {
   if (!EXPEDIA_USER || !EXPEDIA_PASS) {
     throw new Error('Credenciais do Expedia TAAP não configuradas (.env EXPEDIA_USER / EXPEDIA_PASS)');
   }
 
-  // Navigate to the TAAP portal
+  // ===== STEP 1: Open landing page =====
+  console.log('  → Opening Expedia TAAP landing page...');
   await page.goto(EXPEDIA_TAAP_URL, {
     waitUntil: 'networkidle2',
     timeout: 45000,
   });
 
-  console.log('  → Page loaded:', page.url());
+  console.log('  → Landing page loaded:', page.url());
+  await delay(2000);
 
-  // The TAAP portal may redirect to a login/auth page
-  // Wait a moment for any redirects to complete
-  await delay(3000);
+  // ===== STEP 2: Click "Fazer Login" button on the central card =====
+  console.log('  → Looking for "Fazer Login" button on landing page...');
 
-  const currentUrl = page.url();
-  console.log('  → Current URL after redirect:', currentUrl);
+  // Try to find by text content first (most reliable for this specific site)
+  const fazerLoginBtn = await page.evaluateHandle(() => {
+    // Look for links/buttons containing "Fazer Login" or "Fazer login" or "Login" text
+    const allElements = document.querySelectorAll('a, button, input[type="submit"], input[type="button"]');
+    for (const el of allElements) {
+      const text = (el.textContent || el.value || '').trim().toLowerCase();
+      if (text.includes('fazer login') || text === 'login' || text === 'entrar' || text === 'acessar') {
+        return el;
+      }
+    }
+    // Also check for links with href containing "login"
+    const loginLinks = document.querySelectorAll('a[href*="login"], a[href*="signin"], a[href*="auth"]');
+    if (loginLinks.length > 0) return loginLinks[0];
+    return null;
+  });
 
-  // Try to find the email/username field with multiple possible selectors
+  const btnElement = fazerLoginBtn.asElement();
+
+  if (btnElement) {
+    console.log('  → Found "Fazer Login" button, clicking...');
+    await btnElement.click();
+  } else {
+    // Fallback: try common selector patterns
+    console.log('  → Text search failed, trying CSS selectors...');
+    const loginBtnSelectors = [
+      'a[href*="login"]',
+      'a[href*="signin"]',
+      'a[href*="auth"]',
+      'button.login',
+      '.login-btn',
+      '.btn-login',
+      '#login-btn',
+      'a.btn-primary',
+      'button.btn-primary',
+    ];
+
+    const loginLink = await findElement(page, loginBtnSelectors, 10000);
+    if (loginLink) {
+      console.log('  → Found login link via CSS, clicking...');
+      await loginLink.click();
+    } else {
+      console.error('  → Could not find "Fazer Login" button');
+      const bodyText = await page.evaluate(() => document.body?.innerText?.substring(0, 500) || '');
+      console.error('  → Page text:', bodyText.substring(0, 300));
+      throw new Error('Botão "Fazer Login" não encontrado na landing page');
+    }
+  }
+
+  // Wait for login page to load
+  try {
+    await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 20000 });
+  } catch {
+    await delay(3000);
+  }
+
+  console.log('  → Login page URL:', page.url());
+  await delay(2000);
+
+  // ===== STEP 3: Fill email and password =====
+  console.log('  → Looking for email field ("Endereço de e-mail")...');
+
   const emailSelectors = [
     'input[type="email"]',
     'input[name="email"]',
     'input[name="username"]',
-    'input[name="login"]',
     'input[id="email"]',
     'input[id="username"]',
-    'input[id="login-email"]',
     'input[id="loginId"]',
+    'input[placeholder*="e-mail"]',
+    'input[placeholder*="E-mail"]',
     'input[placeholder*="email"]',
     'input[placeholder*="Email"]',
-    'input[placeholder*="usuario"]',
-    'input[placeholder*="usuário"]',
-    'input[placeholder*="login"]',
-    '#credentials-email',
-    '#user_id',
-    'input[data-testid="email-input"]',
+    'input[aria-label*="e-mail"]',
     'input[aria-label*="email"]',
     'input[aria-label*="Email"]',
+    '#credentials-email',
   ];
 
-  console.log('  → Looking for email/username field...');
   const emailInput = await findElement(page, emailSelectors, 15000);
 
   if (!emailInput) {
-    // Maybe we need to check if there's an iframe
+    // Check inside iframes (some auth flows use embedded frames)
     const frames = page.frames();
-    console.log(`  → Found ${frames.length} frames, checking for login form in frames...`);
+    console.log(`  → Checking ${frames.length} frames for login form...`);
 
     for (const frame of frames) {
       try {
-        const frameEmailInput = await frame.$('input[type="email"], input[name="email"], input[name="username"]');
-        if (frameEmailInput) {
-          console.log('  → Found login form in iframe');
-          await loginInFrame(frame);
+        const frameEmail = await frame.$('input[type="email"], input[name="email"]');
+        if (frameEmail) {
+          console.log('  → Found login form in iframe, logging in there...');
+          await loginInContext(frame);
+          // Wait for main page to update after iframe login
+          await delay(5000);
+          console.log('  → After iframe login URL:', page.url());
           return;
         }
       } catch {}
     }
 
-    // Log page content for debugging
     const pageTitle = await page.title();
     const bodyText = await page.evaluate(() => document.body?.innerText?.substring(0, 500) || '');
-    console.error(`  → Could not find login form. Title: "${pageTitle}"`);
-    console.error(`  → Page text preview: ${bodyText.substring(0, 300)}`);
-    throw new Error('Login form not found on Expedia TAAP page');
+    console.error(`  → Email field not found. Title: "${pageTitle}", URL: ${page.url()}`);
+    console.error(`  → Page content: ${bodyText.substring(0, 300)}`);
+    throw new Error('Campo de e-mail não encontrado na página de login');
   }
 
-  // Fill email/username
-  console.log('  → Filling email/username...');
+  // Type email
+  console.log('  → Filling email...');
   await emailInput.click({ clickCount: 3 });
   await delay(200);
   await emailInput.type(EXPEDIA_USER, { delay: 30 });
   await delay(500);
 
-  // Some login flows have a "Next" button before showing password
-  const nextBtnSelectors = [
-    'button[type="submit"]',
-    'button[id="login-submit"]',
-    'button[data-testid="submit-button"]',
-    'input[type="submit"]',
-    '.btn-primary',
-    '#loginFormSubmitButton',
-    'button:not([type="button"])',
-  ];
-
-  // Check if password field is already visible
+  // Find password field
+  console.log('  → Looking for password field ("Senha")...');
   const passSelectors = [
     'input[type="password"]',
     'input[name="password"]',
     'input[id="password"]',
-    'input[id="login-password"]',
-    '#credentials-password',
-    'input[placeholder*="senha"]',
-    'input[placeholder*="Senha"]',
-    'input[placeholder*="password"]',
-    'input[aria-label*="senha"]',
-    'input[aria-label*="password"]',
+    'input[placeholder*="enha"]',
+    'input[placeholder*="assword"]',
+    'input[aria-label*="enha"]',
+    'input[aria-label*="assword"]',
   ];
 
-  let passInput = await page.$('input[type="password"]:not([style*="display: none"])');
+  let passInput = await findElement(page, passSelectors, 5000);
 
   if (!passInput) {
-    // Password not visible yet - click "Next" first
-    console.log('  → Password not visible, looking for Next/Submit button...');
-    const nextBtn = await findElement(page, nextBtnSelectors, 5000);
-    if (nextBtn) {
-      console.log('  → Clicking Next/Submit...');
-      await nextBtn.click();
-      await delay(3000);
-
-      // Now wait for password field
-      passInput = await findElement(page, passSelectors, 10000);
-    }
-  }
-
-  if (!passInput) {
+    // Some flows show password after submitting email
+    console.log('  → Password not visible yet, submitting email first...');
+    await page.keyboard.press('Enter');
+    await delay(3000);
     passInput = await findElement(page, passSelectors, 10000);
   }
 
   if (!passInput) {
-    const pageTitle = await page.title();
-    console.error(`  → Could not find password field. URL: ${page.url()}, Title: "${pageTitle}"`);
-    throw new Error('Password field not found');
+    throw new Error('Campo de senha não encontrado na página de login');
   }
 
-  // Fill password
+  // Type password
   console.log('  → Filling password...');
   await passInput.click({ clickCount: 3 });
   await delay(200);
   await passInput.type(EXPEDIA_PASS, { delay: 30 });
   await delay(500);
 
-  // Click login/submit button
-  console.log('  → Clicking login button...');
-  const loginBtnSelectors = [
-    'button[type="submit"]',
-    'input[type="submit"]',
-    'button[id="login-submit"]',
-    'button[data-testid="submit-button"]',
-    '#loginFormSubmitButton',
-    '.login-btn',
-    '.btn-login',
-    '.btn-primary',
-  ];
+  // ===== STEP 4: Click "Fazer login" submit button =====
+  console.log('  → Looking for submit button ("Fazer login")...');
 
-  const loginBtn = await findElement(page, loginBtnSelectors, 5000);
-  if (loginBtn) {
-    await loginBtn.click();
+  // Try text-based search first
+  const submitBtn = await page.evaluateHandle(() => {
+    const buttons = document.querySelectorAll('button, input[type="submit"], a.btn');
+    for (const btn of buttons) {
+      const text = (btn.textContent || btn.value || '').trim().toLowerCase();
+      if (text.includes('fazer login') || text.includes('entrar') || text.includes('sign in') || text.includes('log in') || text === 'login') {
+        return btn;
+      }
+    }
+    // Fallback to type="submit"
+    const submit = document.querySelector('button[type="submit"], input[type="submit"]');
+    return submit || null;
+  });
+
+  const submitElement = submitBtn.asElement();
+
+  if (submitElement) {
+    console.log('  → Clicking "Fazer login" button...');
+    await submitElement.click();
   } else {
-    // Fallback: press Enter
-    console.log('  → No login button found, pressing Enter...');
+    // Last resort: press Enter
+    console.log('  → Submit button not found, pressing Enter...');
     await page.keyboard.press('Enter');
   }
 
-  // Wait for navigation after login
+  // ===== STEP 5: Wait for dashboard to load =====
   try {
     await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
   } catch {
-    // Sometimes navigation doesn't trigger as expected, wait a bit
     await delay(5000);
   }
 
   const loggedInUrl = page.url();
   console.log('  → After login URL:', loggedInUrl);
 
-  // Verify we're logged in (not still on login page)
-  const stillHasLoginForm = await page.$('input[type="password"]');
-  if (stillHasLoginForm) {
-    console.warn('  → WARNING: May still be on login page. Checking for error messages...');
+  // Verify login succeeded
+  const stillOnLogin = await page.$('input[type="password"]');
+  if (stillOnLogin) {
     const errorMsg = await page.evaluate(() => {
-      const errorEl = document.querySelector('.error, .alert-danger, .error-message, [role="alert"]');
+      const errorEl = document.querySelector('.error, .alert, .alert-danger, .error-message, [role="alert"], .notification-error');
       return errorEl?.textContent?.trim() || '';
     });
     if (errorMsg) {
-      console.error('  → Login error:', errorMsg);
-      throw new Error(`Login failed: ${errorMsg}`);
+      console.error('  → Login error message:', errorMsg);
+      throw new Error(`Login falhou: ${errorMsg}`);
     }
+    console.warn('  → WARNING: Password field still visible, login may have failed');
   }
 
-  console.log('  → Login completed');
+  console.log('  → Login completed successfully!');
 }
 
 /**
- * Handle login when form is inside an iframe
+ * Handle login inside an iframe or frame context
  */
-async function loginInFrame(frame) {
-  const emailInput = await frame.$('input[type="email"], input[name="email"], input[name="username"]');
+async function loginInContext(context) {
+  const emailInput = await context.$('input[type="email"], input[name="email"], input[name="username"]');
   if (emailInput) {
     await emailInput.click({ clickCount: 3 });
     await emailInput.type(EXPEDIA_USER, { delay: 30 });
@@ -311,7 +353,7 @@ async function loginInFrame(frame) {
 
   await delay(500);
 
-  const passInput = await frame.$('input[type="password"], input[name="password"]');
+  const passInput = await context.$('input[type="password"], input[name="password"]');
   if (passInput) {
     await passInput.click({ clickCount: 3 });
     await passInput.type(EXPEDIA_PASS, { delay: 30 });
@@ -319,9 +361,21 @@ async function loginInFrame(frame) {
 
   await delay(500);
 
-  const submitBtn = await frame.$('button[type="submit"], input[type="submit"]');
-  if (submitBtn) {
-    await submitBtn.click();
+  // Try to find submit by text
+  const submitBtn = await context.evaluateHandle(() => {
+    const buttons = document.querySelectorAll('button, input[type="submit"]');
+    for (const btn of buttons) {
+      const text = (btn.textContent || btn.value || '').trim().toLowerCase();
+      if (text.includes('fazer login') || text.includes('entrar') || text.includes('login') || text.includes('sign in')) {
+        return btn;
+      }
+    }
+    return document.querySelector('button[type="submit"], input[type="submit"]') || null;
+  });
+
+  const btnEl = submitBtn.asElement();
+  if (btnEl) {
+    await btnEl.click();
   }
 
   await delay(5000);
