@@ -2,13 +2,11 @@ services:
   - type: web
     name: expedia-ag
     runtime: node
-    buildCommand: npm install && npx puppeteer browsers install chrome
+    buildCommand: npm install
     startCommand: node src/server.js
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PUPPETEER_CACHE_DIR
-        value: /opt/render/.cache/puppeteer
       - key: BASE_URL
         sync: false
       - key: EXPEDIA_USER
