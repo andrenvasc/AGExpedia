@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GW Travel - Gerando Cotação</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="logo">
+        <img src="/assets/gw-logo.png" alt="GW Travel" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+        <div class="logo-fallback" style="display:none;">
+          <span class="logo-text">GW</span>
+          <span class="logo-sub">TRAVEL</span>
+        </div>
+      </div>
+      <p class="tagline">Viagens Personalizadas</p>
+    </header>
+
+    <main class="processing-content">
+      <!-- Progress Section -->
+      <div id="progressSection">
+        <h1 class="page-title">Gerando Cotação</h1>
+        <p class="page-subtitle" id="clienteInfo"></p>
+
+        <div class="progress-container">
+          <div class="progress-bar">
+            <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+          </div>
+          <p class="progress-percent" id="progressPercent">0%</p>
+        </div>
+
+        <div class="steps-container" id="stepsContainer">
+          <div class="step" id="step-search" data-step="search">
+            <div class="step-icon">&#128269;</div>
+            <div class="step-info">
+              <p class="step-title">Buscando hotéis na Expedia</p>
+              <p class="step-status">Aguardando...</p>
+            </div>
+          </div>
+          <div class="step" id="step-reviews" data-step="reviews">
+            <div class="step-icon">&#11088;</div>
+            <div class="step-info">
+              <p class="step-title">Coletando avaliações</p>
+              <p class="step-status">Aguardando...</p>
+            </div>
+          </div>
+          <div class="step" id="step-select" data-step="select">
+            <div class="step-icon">&#127919;</div>
+            <div class="step-info">
+              <p class="step-title">Selecionando melhores opções</p>
+              <p class="step-status">Aguardando...</p>
+            </div>
+          </div>
+          <div class="step" id="step-report" data-step="report">
+            <div class="step-icon">&#128196;</div>
+            <div class="step-info">
+              <p class="step-title">Montando cotação</p>
+              <p class="step-status">Aguardando...</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live results appear here as they come in -->
+        <div id="liveResults" class="live-results" style="display:none;">
+          <h2 class="section-title">Resultados encontrados</h2>
+          <div id="liveHotels"></div>
+        </div>
+      </div>
+
+      <!-- Done Section (hidden initially) -->
+      <div id="doneSection" style="display:none;">
+        <div class="check-animation">
+          <svg class="checkmark" viewBox="0 0 52 52">
+            <circle class="checkmark-circle" cx="26" cy="26" r="25" fill="none"/>
+            <path class="checkmark-check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+          </svg>
+        </div>
+        <h1 class="page-title">Cotação Pronta!</h1>
+        <p class="page-subtitle">O orçamento foi gerado com sucesso.</p>
+
+        <div class="done-actions">
+          <a id="viewReportBtn" href="#" class="btn-submit" style="display:inline-block; text-decoration:none;">Ver Cotação Completa</a>
+          <button id="copyLinkBtn" class="btn-copy" onclick="copyLink()">Copiar Link para Cliente</button>
+          <a href="/" class="btn-back">Nova Cotação</a>
+          <a href="/dashboard" class="btn-back">Ver Dashboard</a>
+        </div>
+      </div>
+
+      <!-- Error Section (hidden initially) -->
+      <div id="errorSection" style="display:none;">
+        <h1 class="page-title" style="color: var(--error);">Erro na Cotação</h1>
+        <p class="page-subtitle" id="errorMsg">Ocorreu um erro ao gerar a cotação.</p>
+        <div class="done-actions">
+          <a href="/" class="btn-submit" style="display:inline-block; text-decoration:none;">Tentar Novamente</a>
+        </div>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <p>GW Travel - Viagens Personalizadas</p>
+      <p class="footer-sub">www.gwtravel.com.br</p>
+    </footer>
+  </div>
+
+  <script>
+    var reportUrl = '';
+
+    function copyLink() {
+      if (reportUrl) {
+        navigator.clipboard.writeText(reportUrl).then(function() {
+          var btn = document.getElementById('copyLinkBtn');
+          btn.textContent = 'Link Copiado!';
+          setTimeout(function() { btn.textContent = 'Copiar Link para Cliente'; }, 2000);
+        });
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      // Extract quotation ID from URL
+      var pathParts = window.location.pathname.split('/');
+      var quotationId = pathParts[pathParts.length - 1];
+
+      if (!quotationId) {
+        document.getElementById('errorSection').style.display = 'block';
+        document.getElementById('progressSection').style.display = 'none';
+        return;
+      }
+
+      // Connect to SSE for real-time progress
+      var eventSource = new EventSource('/api/cotacao/' + quotationId + '/progress');
+      var currentProgress = 0;
+
+      eventSource.addEventListener('progress', function(e) {
+        var data = JSON.parse(e.data);
+        updateStep(data.step, data.status, data.message);
+
+        if (data.progress) {
+          animateProgress(data.progress);
+        }
+
+        if (data.clienteNome) {
+          document.getElementById('clienteInfo').textContent =
+            'Cliente: ' + data.clienteNome + ' | Destino: ' + data.destino;
+        }
+      });
+
+      eventSource.addEventListener('hotel_found', function(e) {
+        var data = JSON.parse(e.data);
+        addLiveHotel(data);
+      });
+
+      eventSource.addEventListener('complete', function(e) {
+        var data = JSON.parse(e.data);
+        reportUrl = data.reportUrl;
+        eventSource.close();
+
+        // Show done section
+        animateProgress(100);
+        setTimeout(function() {
+          document.getElementById('progressSection').style.display = 'none';
+          document.getElementById('doneSection').style.display = 'block';
+          document.getElementById('viewReportBtn').href = reportUrl;
+        }, 800);
+      });
+
+      eventSource.addEventListener('error_event', function(e) {
+        var data = JSON.parse(e.data);
+        eventSource.close();
+        document.getElementById('progressSection').style.display = 'none';
+        document.getElementById('errorSection').style.display = 'block';
+        document.getElementById('errorMsg').textContent = data.message || 'Erro ao gerar cotação.';
+      });
+
+      eventSource.onerror = function() {
+        // SSE connection lost - check if quotation is already done
+        eventSource.close();
+        fetch('/api/cotacao/' + quotationId + '/status')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (data.status === 'completed' && data.reportUrl) {
+              reportUrl = data.reportUrl;
+              document.getElementById('progressSection').style.display = 'none';
+              document.getElementById('doneSection').style.display = 'block';
+              document.getElementById('viewReportBtn').href = reportUrl;
+            }
+          })
+          .catch(function() {});
+      };
+
+      function animateProgress(target) {
+        var fill = document.getElementById('progressFill');
+        var label = document.getElementById('progressPercent');
+        var step = currentProgress < target ? 1 : -1;
+        var interval = setInterval(function() {
+          currentProgress += step;
+          fill.style.width = currentProgress + '%';
+          label.textContent = currentProgress + '%';
+          if (currentProgress >= target) {
+            clearInterval(interval);
+            currentProgress = target;
+          }
+        }, 20);
+      }
+
+      function updateStep(stepName, status, message) {
+        var stepEl = document.getElementById('step-' + stepName);
+        if (!stepEl) return;
+
+        var statusEl = stepEl.querySelector('.step-status');
+
+        // Remove all status classes
+        stepEl.classList.remove('step-active', 'step-done', 'step-error');
+
+        if (status === 'active') {
+          stepEl.classList.add('step-active');
+          statusEl.textContent = message || 'Em andamento...';
+        } else if (status === 'done') {
+          stepEl.classList.add('step-done');
+          statusEl.textContent = message || 'Concluído';
+        } else if (status === 'error') {
+          stepEl.classList.add('step-error');
+          statusEl.textContent = message || 'Erro';
+        }
+      }
+
+      function addLiveHotel(hotel) {
+        var container = document.getElementById('liveResults');
+        var list = document.getElementById('liveHotels');
+        container.style.display = 'block';
+
+        var card = document.createElement('div');
+        card.className = 'live-hotel-card';
+        card.innerHTML =
+          '<div class="live-hotel-tier">' + (hotel.tierLabel || '') + '</div>' +
+          '<div class="live-hotel-info">' +
+            '<h3>' + escapeHtml(hotel.name) + '</h3>' +
+            '<p>' + escapeHtml(hotel.location || '') + '</p>' +
+            (hotel.pricePerNight ? '<p class="live-hotel-price">R$ ' + hotel.pricePerNight.toFixed(2).replace('.', ',') + '/noite</p>' : '') +
+          '</div>';
+        list.appendChild(card);
+      }
+
+      function escapeHtml(str) {
+        if (!str) return '';
+        var div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+      }
+    });
+  </script>
+</body>
+</html>

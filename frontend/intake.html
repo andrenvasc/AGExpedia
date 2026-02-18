@@ -20,31 +20,25 @@
       <p class="tagline">Viagens Personalizadas</p>
     </header>
 
+    <nav class="internal-nav">
+      <a href="/" class="nav-link active">Nova Cotação</a>
+      <a href="/dashboard" class="nav-link">Dashboard</a>
+    </nav>
+
     <main>
-      <h1 class="page-title">Solicite sua Cotação</h1>
-      <p class="page-subtitle">Preencha os dados abaixo e receba opções selecionadas especialmente para você.</p>
+      <h1 class="page-title">Nova Cotação</h1>
+      <p class="page-subtitle">Preencha os dados da viagem para gerar a cotação em tempo real.</p>
 
       <form id="intakeForm" novalidate>
 
         <!-- Seção 1: Dados do Cliente -->
         <section class="form-section">
-          <h2 class="section-title"><span class="section-icon">&#128100;</span> Seus Dados</h2>
+          <h2 class="section-title"><span class="section-icon">&#128100;</span> Dados do Cliente</h2>
 
           <div class="form-group">
-            <label for="nome">Nome <span class="required">*</span></label>
-            <input type="text" id="nome" name="nome" placeholder="Nome completo..." required>
+            <label for="nome">Nome do Cliente <span class="required">*</span></label>
+            <input type="text" id="nome" name="nome" placeholder="Nome completo do cliente..." required>
             <span class="error-msg" id="nome-error"></span>
-          </div>
-
-          <div class="form-group">
-            <label for="email">E-mail <span class="required">*</span></label>
-            <input type="email" id="email" name="email" placeholder="seu@email.com" required>
-            <span class="error-msg" id="email-error"></span>
-          </div>
-
-          <div class="form-group">
-            <label for="whatsapp">WhatsApp <span class="optional">(opcional)</span></label>
-            <input type="tel" id="whatsapp" name="whatsapp" placeholder="(00) 00000-0000">
           </div>
         </section>
 
@@ -54,29 +48,8 @@
 
           <div class="form-group">
             <label for="destino">Cidade ou País <span class="required">*</span></label>
-            <input type="text" id="destino" name="destino" placeholder="Digite a cidade ou país..." required autocomplete="off" list="destinos-list">
-            <datalist id="destinos-list">
-              <option value="Paris, França">
-              <option value="Londres, Inglaterra">
-              <option value="Roma, Itália">
-              <option value="Barcelona, Espanha">
-              <option value="Lisboa, Portugal">
-              <option value="Nova York, EUA">
-              <option value="Miami, EUA">
-              <option value="Orlando, EUA">
-              <option value="Cancún, México">
-              <option value="Buenos Aires, Argentina">
-              <option value="Santiago, Chile">
-              <option value="Tóquio, Japão">
-              <option value="Dubai, Emirados Árabes">
-              <option value="Maldivas">
-              <option value="Santorini, Grécia">
-              <option value="Bali, Indonésia">
-              <option value="Punta Cana, República Dominicana">
-              <option value="Fernando de Noronha, Brasil">
-              <option value="Rio de Janeiro, Brasil">
-              <option value="Gramado, Brasil">
-            </datalist>
+            <input type="text" id="destino" name="destino" placeholder="Comece a digitar o destino..." required autocomplete="off">
+            <div id="destino-suggestions" class="autocomplete-suggestions"></div>
             <span class="error-msg" id="destino-error"></span>
           </div>
         </section>
@@ -216,40 +189,35 @@
           <span class="error-msg" id="prioridades-error"></span>
         </section>
 
-        <!-- Seção 7: Orçamento -->
+        <!-- Seção 7: Orçamento (multi-select) -->
         <section class="form-section">
           <h2 class="section-title"><span class="section-icon">&#128176;</span> Faixa de Orçamento <span class="optional">(por noite)</span></h2>
+          <p class="section-hint">Selecione uma ou mais faixas</p>
 
-          <div class="radio-group">
-            <label class="radio-option">
-              <input type="radio" name="orcamento" value="economico">
-              <span class="radio-custom"></span>
-              <span class="radio-label">Econômico <span class="radio-detail">(até R$ 400)</span></span>
+          <div class="chips-container">
+            <label class="chip">
+              <input type="checkbox" name="orcamento" value="economico">
+              <span class="chip-label">Econômico <small>(até R$ 400)</small></span>
             </label>
-            <label class="radio-option">
-              <input type="radio" name="orcamento" value="moderado">
-              <span class="radio-custom"></span>
-              <span class="radio-label">Moderado <span class="radio-detail">(R$ 400 - R$ 800)</span></span>
+            <label class="chip">
+              <input type="checkbox" name="orcamento" value="moderado">
+              <span class="chip-label">Moderado <small>(R$ 400-800)</small></span>
             </label>
-            <label class="radio-option">
-              <input type="radio" name="orcamento" value="confortavel">
-              <span class="radio-custom"></span>
-              <span class="radio-label">Confortável <span class="radio-detail">(R$ 800 - R$ 1.500)</span></span>
+            <label class="chip">
+              <input type="checkbox" name="orcamento" value="confortavel">
+              <span class="chip-label">Confortável <small>(R$ 800-1.500)</small></span>
             </label>
-            <label class="radio-option">
-              <input type="radio" name="orcamento" value="premium" checked>
-              <span class="radio-custom"></span>
-              <span class="radio-label">Premium <span class="radio-detail">(R$ 1.500 - R$ 3.000)</span></span>
+            <label class="chip">
+              <input type="checkbox" name="orcamento" value="premium" checked>
+              <span class="chip-label">Premium <small>(R$ 1.500-3.000)</small></span>
             </label>
-            <label class="radio-option">
-              <input type="radio" name="orcamento" value="luxo">
-              <span class="radio-custom"></span>
-              <span class="radio-label">Luxo <span class="radio-detail">(acima de R$ 3.000)</span></span>
+            <label class="chip">
+              <input type="checkbox" name="orcamento" value="luxo">
+              <span class="chip-label">Luxo <small>(acima de R$ 3.000)</small></span>
             </label>
-            <label class="radio-option">
-              <input type="radio" name="orcamento" value="sem_limite">
-              <span class="radio-custom"></span>
-              <span class="radio-label">Sem limite</span>
+            <label class="chip">
+              <input type="checkbox" name="orcamento" value="sem_limite">
+              <span class="chip-label">Sem limite</span>
             </label>
           </div>
         </section>
@@ -266,9 +234,9 @@
         <!-- Submit -->
         <div class="submit-section">
           <button type="submit" class="btn-submit" id="btnSubmit">
-            &#128269; BUSCAR COTAÇÕES
+            &#128269; GERAR COTAÇÃO
           </button>
-          <p class="submit-hint">Você receberá a cotação no e-mail informado em até 5 minutos.</p>
+          <p class="submit-hint">A cotação será gerada em tempo real na próxima tela.</p>
         </div>
 
       </form>
@@ -282,34 +250,99 @@
 
   <script>
     document.addEventListener('DOMContentLoaded', function() {
-      const form = document.getElementById('intakeForm');
-      const criancasSelect = document.getElementById('criancas');
-      const idadesContainer = document.getElementById('idadesCriancasContainer');
-      const idadesFields = document.getElementById('idadesCriancasFields');
-      const checkInInput = document.getElementById('checkIn');
-      const checkOutInput = document.getElementById('checkOut');
-      const nightsCount = document.getElementById('nightsCount');
-      const priorityChecks = document.querySelectorAll('.priority-check');
+      var form = document.getElementById('intakeForm');
+      var criancasSelect = document.getElementById('criancas');
+      var idadesContainer = document.getElementById('idadesCriancasContainer');
+      var idadesFields = document.getElementById('idadesCriancasFields');
+      var checkInInput = document.getElementById('checkIn');
+      var checkOutInput = document.getElementById('checkOut');
+      var nightsCount = document.getElementById('nightsCount');
+      var priorityChecks = document.querySelectorAll('.priority-check');
 
       // Set min date to today
-      const today = new Date().toISOString().split('T')[0];
+      var today = new Date().toISOString().split('T')[0];
       checkInInput.setAttribute('min', today);
       checkOutInput.setAttribute('min', today);
 
+      // === Destination autocomplete ===
+      var destinos = [
+        'Paris, França', 'Londres, Inglaterra', 'Roma, Itália', 'Milão, Itália',
+        'Barcelona, Espanha', 'Madrid, Espanha', 'Lisboa, Portugal', 'Porto, Portugal',
+        'Amsterdã, Holanda', 'Berlim, Alemanha', 'Munique, Alemanha', 'Viena, Áustria',
+        'Praga, República Tcheca', 'Budapeste, Hungria', 'Atenas, Grécia',
+        'Santorini, Grécia', 'Mykonos, Grécia', 'Dubrovnik, Croácia',
+        'Nova York, EUA', 'Miami, EUA', 'Orlando, EUA', 'Los Angeles, EUA',
+        'Las Vegas, EUA', 'San Francisco, EUA', 'Chicago, EUA', 'Boston, EUA',
+        'Cancún, México', 'Cidade do México, México', 'Playa del Carmen, México',
+        'Buenos Aires, Argentina', 'Bariloche, Argentina', 'Mendoza, Argentina',
+        'Santiago, Chile', 'Cartagena, Colômbia', 'Lima, Peru', 'Cusco, Peru',
+        'Punta Cana, República Dominicana', 'Aruba',
+        'Tóquio, Japão', 'Kyoto, Japão', 'Osaka, Japão',
+        'Bangkok, Tailândia', 'Phuket, Tailândia',
+        'Dubai, Emirados Árabes', 'Abu Dhabi, Emirados Árabes',
+        'Maldivas', 'Bali, Indonésia', 'Singapura',
+        'Sydney, Austrália', 'Melbourne, Austrália',
+        'Cape Town, África do Sul',
+        'Fernando de Noronha, Brasil', 'Rio de Janeiro, Brasil',
+        'Gramado, Brasil', 'Florianópolis, Brasil', 'Salvador, Brasil',
+        'Jericoacoara, Brasil', 'Búzios, Brasil', 'São Paulo, Brasil',
+        'Foz do Iguaçu, Brasil', 'Trancoso, Brasil', 'Maceió, Brasil',
+        'Natal, Brasil', 'Recife, Brasil', 'Manaus, Brasil',
+        'Bonito, Brasil', 'Campos do Jordão, Brasil'
+      ];
+
+      var destinoInput = document.getElementById('destino');
+      var suggestionsBox = document.getElementById('destino-suggestions');
+
+      destinoInput.addEventListener('input', function() {
+        var query = this.value.toLowerCase().trim();
+        suggestionsBox.innerHTML = '';
+        suggestionsBox.style.display = 'none';
+
+        if (query.length < 2) return;
+
+        var matches = destinos.filter(function(d) {
+          return d.toLowerCase().indexOf(query) !== -1;
+        }).slice(0, 8);
+
+        if (matches.length === 0) return;
+
+        matches.forEach(function(match) {
+          var div = document.createElement('div');
+          div.className = 'autocomplete-item';
+          div.textContent = match;
+          div.addEventListener('click', function() {
+            destinoInput.value = match;
+            suggestionsBox.innerHTML = '';
+            suggestionsBox.style.display = 'none';
+            clearError('destino-error');
+          });
+          suggestionsBox.appendChild(div);
+        });
+        suggestionsBox.style.display = 'block';
+      });
+
+      // Close suggestions on click outside
+      document.addEventListener('click', function(e) {
+        if (!destinoInput.contains(e.target) && !suggestionsBox.contains(e.target)) {
+          suggestionsBox.style.display = 'none';
+        }
+      });
+
       // Dynamic children age fields
       criancasSelect.addEventListener('change', function() {
-        const count = parseInt(this.value);
+        var count = parseInt(this.value);
         idadesFields.innerHTML = '';
 
         if (count > 0) {
           idadesContainer.style.display = 'block';
-          for (let i = 0; i < count; i++) {
-            const select = document.createElement('select');
+          for (var i = 0; i < count; i++) {
+            var select = document.createElement('select');
             select.name = 'idadeCrianca_' + i;
             select.className = 'age-select';
             select.required = true;
-            for (let age = 0; age <= 17; age++) {
-              const opt = document.createElement('option');
+            for (var age = 0; age <= 17; age++) {
+              var opt = document.createElement('option');
               opt.value = age;
               opt.textContent = age + (age === 1 ? ' ano' : ' anos');
               select.appendChild(opt);
@@ -323,10 +356,10 @@
 
       // Calculate nights
       function updateNights() {
-        const checkIn = checkInInput.value;
-        const checkOut = checkOutInput.value;
+        var checkIn = checkInInput.value;
+        var checkOut = checkOutInput.value;
         if (checkIn && checkOut) {
-          const diff = (new Date(checkOut) - new Date(checkIn)) / (1000 * 60 * 60 * 24);
+          var diff = (new Date(checkOut) - new Date(checkIn)) / (1000 * 60 * 60 * 24);
           if (diff > 0) {
             nightsCount.textContent = diff + (diff === 1 ? ' noite' : ' noites');
             nightsCount.style.display = 'block';
@@ -339,7 +372,7 @@
 
       checkInInput.addEventListener('change', function() {
         if (this.value) {
-          const nextDay = new Date(this.value);
+          var nextDay = new Date(this.value);
           nextDay.setDate(nextDay.getDate() + 1);
           checkOutInput.setAttribute('min', nextDay.toISOString().split('T')[0]);
           if (checkOutInput.value && new Date(checkOutInput.value) <= new Date(this.value)) {
@@ -354,7 +387,7 @@
       // Priority limit (max 3)
       priorityChecks.forEach(function(check) {
         check.addEventListener('change', function() {
-          const checked = document.querySelectorAll('.priority-check:checked');
+          var checked = document.querySelectorAll('.priority-check:checked');
           if (checked.length > 3) {
             this.checked = false;
             showError('prioridades-error', 'Selecione no máximo 3 prioridades.');
@@ -366,7 +399,7 @@
 
       // Real-time validation
       function showError(id, msg) {
-        const el = document.getElementById(id);
+        var el = document.getElementById(id);
         if (el) {
           el.textContent = msg;
           el.style.display = 'block';
@@ -374,7 +407,7 @@
       }
 
       function clearError(id) {
-        const el = document.getElementById(id);
+        var el = document.getElementById(id);
         if (el) {
           el.textContent = '';
           el.style.display = 'none';
@@ -386,50 +419,23 @@
         else clearError('nome-error');
       });
 
-      document.getElementById('email').addEventListener('blur', function() {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!this.value.trim()) showError('email-error', 'E-mail é obrigatório.');
-        else if (!emailRegex.test(this.value)) showError('email-error', 'Formato de e-mail inválido.');
-        else clearError('email-error');
-      });
-
       document.getElementById('destino').addEventListener('blur', function() {
         if (!this.value.trim()) showError('destino-error', 'Destino é obrigatório.');
         else clearError('destino-error');
-      });
-
-      // WhatsApp mask
-      document.getElementById('whatsapp').addEventListener('input', function() {
-        let v = this.value.replace(/\D/g, '');
-        if (v.length > 11) v = v.slice(0, 11);
-        if (v.length > 6) {
-          this.value = '(' + v.slice(0,2) + ') ' + v.slice(2,7) + '-' + v.slice(7);
-        } else if (v.length > 2) {
-          this.value = '(' + v.slice(0,2) + ') ' + v.slice(2);
-        } else if (v.length > 0) {
-          this.value = '(' + v;
-        }
       });
 
       // Form submission
       form.addEventListener('submit', function(e) {
         e.preventDefault();
 
-        // Validate required fields
-        let valid = true;
-        const nome = document.getElementById('nome').value.trim();
-        const email = document.getElementById('email').value.trim();
-        const destino = document.getElementById('destino').value.trim();
-        const checkIn = checkInInput.value;
-        const checkOut = checkOutInput.value;
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        var valid = true;
+        var nome = document.getElementById('nome').value.trim();
+        var destino = document.getElementById('destino').value.trim();
+        var checkIn = checkInInput.value;
+        var checkOut = checkOutInput.value;
 
         if (!nome) { showError('nome-error', 'Nome é obrigatório.'); valid = false; }
         else clearError('nome-error');
-
-        if (!email) { showError('email-error', 'E-mail é obrigatório.'); valid = false; }
-        else if (!emailRegex.test(email)) { showError('email-error', 'Formato de e-mail inválido.'); valid = false; }
-        else clearError('email-error');
 
         if (!destino) { showError('destino-error', 'Destino é obrigatório.'); valid = false; }
         else clearError('destino-error');
@@ -446,22 +452,20 @@
         }
 
         // Collect data
-        const estilos = Array.from(document.querySelectorAll('input[name="estilos"]:checked')).map(c => c.value);
-        const prioridades = Array.from(document.querySelectorAll('input[name="prioridades"]:checked')).map(c => c.value);
-        const orcamento = document.querySelector('input[name="orcamento"]:checked')?.value || 'sem_limite';
-        const criancasCount = parseInt(criancasSelect.value);
-        const idadesCriancas = [];
-        for (let i = 0; i < criancasCount; i++) {
-          const sel = document.querySelector('[name="idadeCrianca_' + i + '"]');
+        var estilos = Array.from(document.querySelectorAll('input[name="estilos"]:checked')).map(function(c) { return c.value; });
+        var prioridades = Array.from(document.querySelectorAll('input[name="prioridades"]:checked')).map(function(c) { return c.value; });
+        var orcamentos = Array.from(document.querySelectorAll('input[name="orcamento"]:checked')).map(function(c) { return c.value; });
+        if (orcamentos.length === 0) orcamentos = ['sem_limite'];
+
+        var criancasCount = parseInt(criancasSelect.value);
+        var idadesCriancas = [];
+        for (var i = 0; i < criancasCount; i++) {
+          var sel = document.querySelector('[name="idadeCrianca_' + i + '"]');
           if (sel) idadesCriancas.push(parseInt(sel.value));
         }
 
-        const payload = {
-          cliente: {
-            nome: nome,
-            email: email,
-            whatsapp: document.getElementById('whatsapp').value.trim()
-          },
+        var payload = {
+          cliente: { nome: nome },
           destino: destino,
           checkIn: checkIn,
           checkOut: checkOut,
@@ -470,14 +474,14 @@
           idadesCriancas: idadesCriancas,
           estilos: estilos,
           prioridades: prioridades,
-          orcamento: orcamento,
+          orcamentos: orcamentos,
           observacoes: document.getElementById('observacoes').value.trim()
         };
 
         // Disable button
-        const btn = document.getElementById('btnSubmit');
+        var btn = document.getElementById('btnSubmit');
         btn.disabled = true;
-        btn.textContent = 'Processando...';
+        btn.textContent = 'Iniciando...';
 
         fetch('/api/cotacao', {
           method: 'POST',
@@ -486,18 +490,18 @@
         })
         .then(function(res) { return res.json(); })
         .then(function(data) {
-          if (data.success) {
-            window.location.href = '/confirmacao?email=' + encodeURIComponent(email) + '&nome=' + encodeURIComponent(nome) + '&destino=' + encodeURIComponent(destino);
+          if (data.success && data.quotationId) {
+            window.location.href = '/processando/' + data.quotationId;
           } else {
-            alert('Erro ao processar cotação. Tente novamente.');
+            alert('Erro ao iniciar cotação. Tente novamente.');
             btn.disabled = false;
-            btn.innerHTML = '&#128269; BUSCAR COTAÇÕES';
+            btn.innerHTML = '&#128269; GERAR COTAÇÃO';
           }
         })
         .catch(function() {
           alert('Erro de conexão. Tente novamente.');
           btn.disabled = false;
-          btn.innerHTML = '&#128269; BUSCAR COTAÇÕES';
+          btn.innerHTML = '&#128269; GERAR COTAÇÃO';
         });
       });
     });
