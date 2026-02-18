@@ -142,12 +142,9 @@ async function generateReport(data) {
     ${hotelCards}
 
     <div class="payment-info">
-      <h3>Formas de Pagamento</h3>
+      <h3>Forma de Pagamento</h3>
       <ul>
-        <li>Cartão de crédito em até 12x (consulte juros)</li>
-        <li>PIX com 5% de desconto</li>
-        <li>Transferência bancária com 3% de desconto</li>
-        <li>Boleto à vista</li>
+        <li>Cartão de crédito em até 12x sem juros</li>
       </ul>
       <p style="font-size:12px; color:#777; margin-top:12px;">* Valores sujeitos a alteração conforme disponibilidade no momento da reserva.</p>
       <p style="font-size:12px; color:#777;">* Taxas e impostos podem ser cobrados separadamente conforme política do hotel.</p>
