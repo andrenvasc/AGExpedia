@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: expedia-ag
+    runtime: node
+    buildCommand: npm install && npx puppeteer browsers install chrome
+    startCommand: node src/server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PUPPETEER_CACHE_DIR
+        value: /opt/render/.cache/puppeteer
+      - key: BASE_URL
+        sync: false
+      - key: EXPEDIA_USER
+        sync: false
+      - key: EXPEDIA_PASS
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: EMAIL_REPLY_TO
+        sync: false
+      - key: WHATSAPP_NUMBER
+        sync: false
+      - key: WHATSAPP_DISPLAY
+        sync: false
