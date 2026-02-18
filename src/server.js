@@ -50,11 +50,20 @@ function getNextNumber() {
 
 // ===== SSE connections for real-time progress =====
 const sseClients = new Map(); // quotationId -> [response objects]
+const sseBuffers = new Map(); // quotationId -> [{event, data}] - buffer events for late-connecting clients
 
 function sendSSE(quotationId, event, data) {
+  const message = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+
+  // Always buffer the event so late-connecting clients get the full history
+  if (!sseBuffers.has(quotationId)) {
+    sseBuffers.set(quotationId, []);
+  }
+  sseBuffers.get(quotationId).push({ event, data, message });
+
+  // Send to any connected clients
   const clients = sseClients.get(quotationId);
   if (clients) {
-    const message = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
     clients.forEach(res => {
       try { res.write(message); } catch {}
     });
@@ -139,12 +148,14 @@ app.post('/api/cotacao', (req, res) => {
         // Notify SSE clients
         sendSSE(quotationId, 'complete', { reportUrl: result.reportUrl });
 
-        // Clean up SSE connections
+        // Clean up SSE connections and buffer
         const clients = sseClients.get(quotationId);
         if (clients) {
           clients.forEach(r => { try { r.end(); } catch {} });
           sseClients.delete(quotationId);
         }
+        // Clean buffer after 60s (keep briefly for late connectors)
+        setTimeout(() => sseBuffers.delete(quotationId), 60000);
       })
       .catch(err => {
         console.error('Error processing quotation:', err);
@@ -202,6 +213,15 @@ app.get('/api/cotacao/:id/progress', (req, res) => {
       res.end();
       return;
     }
+  }
+
+  // Replay any buffered events the client missed (solves the 0% stuck issue)
+  const buffer = sseBuffers.get(quotationId);
+  if (buffer && buffer.length > 0) {
+    console.log(`  → Replaying ${buffer.length} buffered events for ${quotationId}`);
+    buffer.forEach(({ message }) => {
+      try { res.write(message); } catch {}
+    });
   }
 
   // Register SSE client

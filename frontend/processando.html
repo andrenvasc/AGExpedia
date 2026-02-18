@@ -120,7 +120,6 @@
     }
 
     document.addEventListener('DOMContentLoaded', function() {
-      // Extract quotation ID from URL
       var pathParts = window.location.pathname.split('/');
       var quotationId = pathParts[pathParts.length - 1];
 
@@ -130,12 +129,24 @@
         return;
       }
 
+      // Start a subtle simulated progress immediately (so it never looks stuck)
+      var simulatedProgress = 0;
+      var simulatedInterval = setInterval(function() {
+        // Slowly creep up to 8% while waiting for real events
+        if (simulatedProgress < 8) {
+          simulatedProgress += 0.5;
+          setProgressBar(simulatedProgress);
+        }
+      }, 300);
+
       // Connect to SSE for real-time progress
       var eventSource = new EventSource('/api/cotacao/' + quotationId + '/progress');
       var currentProgress = 0;
 
       eventSource.addEventListener('progress', function(e) {
         var data = JSON.parse(e.data);
+        clearInterval(simulatedInterval); // Stop simulated progress
+
         updateStep(data.step, data.status, data.message);
 
         if (data.progress) {
@@ -190,6 +201,14 @@
           })
           .catch(function() {});
       };
+
+      function setProgressBar(value) {
+        var fill = document.getElementById('progressFill');
+        var label = document.getElementById('progressPercent');
+        var v = Math.round(value);
+        fill.style.width = v + '%';
+        label.textContent = v + '%';
+      }
 
       function animateProgress(target) {
         var fill = document.getElementById('progressFill');
