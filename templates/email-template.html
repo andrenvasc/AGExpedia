@@ -1,0 +1,88 @@
+<!--
+  GW Travel - Email Template
+  Variables: {{nome}}, {{destino}}, {{checkIn}}, {{checkOut}}, {{adultos}}, {{reportUrl}}
+  This template is rendered inline by email-sender.js
+-->
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0; padding:0; background-color:#f5f5f5; font-family:'Helvetica Neue',Arial,sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#f5f5f5;">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+        <table role="presentation" width="580" cellspacing="0" cellpadding="0" style="background-color:#ffffff; border-radius:8px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+
+          <!-- Header -->
+          <tr>
+            <td style="background-color:#000000; padding:24px 32px; text-align:center;">
+              <span style="font-size:32px; font-weight:700; color:#ffffff; letter-spacing:6px;">GW</span>
+              <br>
+              <span style="font-size:11px; color:#C9A86C; letter-spacing:4px; text-transform:uppercase;">Travel</span>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:40px 32px;">
+              <p style="font-size:18px; color:#333333; margin:0 0 16px;">
+                Olá <strong>{{nome}}</strong>,
+              </p>
+              <p style="font-size:15px; color:#555555; margin:0 0 24px; line-height:1.6;">
+                Sua cotação de hospedagem para <strong style="color:#000;">{{destino}}</strong> está pronta!
+              </p>
+
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#FAFAFA; border:1px solid #E0E0E0; border-radius:8px; margin-bottom:28px;">
+                <tr>
+                  <td style="padding:16px 20px;">
+                    <p style="font-size:14px; color:#333; margin:0 0 6px;">&#128197; {{checkIn}} → {{checkOut}}</p>
+                    <p style="font-size:14px; color:#333; margin:0;">&#128101; {{adultos}} adulto(s)</p>
+                  </td>
+                </tr>
+              </table>
+
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td align="center">
+                    <a href="{{reportUrl}}" target="_blank" style="display:inline-block; padding:16px 40px; background-color:#000000; color:#C9A86C; font-size:15px; font-weight:600; text-decoration:none; border-radius:8px; letter-spacing:1px;">
+                      VER MINHA COTAÇÃO
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="font-size:12px; color:#999999; text-align:center; margin:16px 0 0;">
+                Este link expira em 7 dias.
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:0 32px;">
+              <hr style="border:none; border-top:1px solid #E0E0E0; margin:0;">
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:24px 32px;">
+              <p style="font-size:14px; color:#333333; margin:0 0 8px;">Gostou de alguma opção?</p>
+              <p style="font-size:13px; color:#555555; margin:0 0 4px;">Responda este e-mail ou fale com nosso time pelo WhatsApp:</p>
+              <p style="font-size:14px; color:#333333; margin:0; font-weight:600;">&#128241; (XX) XXXXX-XXXX</p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="background-color:#FAFAFA; padding:20px 32px; text-align:center; border-top:1px solid #E0E0E0;">
+              <p style="font-size:13px; color:#777777; margin:0 0 4px; font-weight:500;">GW Travel - Viagens Personalizadas</p>
+              <p style="font-size:11px; color:#999999; margin:0;">www.gwtravel.com.br</p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

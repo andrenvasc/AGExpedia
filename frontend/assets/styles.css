@@ -1,0 +1,778 @@
+/* ========================================
+   GW Travel - Styles
+   Identidade Visual: Preto + Dourado
+   ======================================== */
+
+:root {
+  --primary: #000000;
+  --secondary: #C9A86C;
+  --secondary-light: #e0c992;
+  --secondary-dark: #a8893e;
+  --bg: #FFFFFF;
+  --bg-section: #FAFAFA;
+  --text: #333333;
+  --text-light: #777777;
+  --border: #E0E0E0;
+  --error: #D32F2F;
+  --success: #2E7D32;
+  --whatsapp: #25D366;
+  --radius: 8px;
+  --shadow: 0 2px 12px rgba(0,0,0,0.08);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Montserrat', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ========== Container ========== */
+.container {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 24px 20px 40px;
+}
+
+/* ========== Header ========== */
+.header {
+  text-align: center;
+  padding: 32px 0 24px;
+  border-bottom: 2px solid var(--secondary);
+  margin-bottom: 32px;
+}
+
+.logo img {
+  max-height: 60px;
+  margin-bottom: 8px;
+}
+
+.logo-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.logo-text {
+  font-size: 42px;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: 8px;
+  line-height: 1;
+}
+
+.logo-sub {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--secondary);
+  letter-spacing: 6px;
+  margin-top: 2px;
+}
+
+.tagline {
+  font-size: 13px;
+  color: var(--text-light);
+  font-weight: 300;
+  letter-spacing: 2px;
+  margin-top: 8px;
+  text-transform: uppercase;
+}
+
+/* ========== Page Title ========== */
+.page-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--primary);
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.page-subtitle {
+  font-size: 14px;
+  color: var(--text-light);
+  text-align: center;
+  margin-bottom: 36px;
+}
+
+/* ========== Form Sections ========== */
+.form-section {
+  background: var(--bg-section);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 20px;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-icon {
+  font-size: 18px;
+}
+
+.section-hint {
+  font-size: 13px;
+  color: var(--text-light);
+  margin-top: -8px;
+  margin-bottom: 16px;
+}
+
+/* ========== Form Elements ========== */
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group:last-child {
+  margin-bottom: 0;
+}
+
+.form-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.required {
+  color: var(--error);
+}
+
+.optional {
+  color: var(--text-light);
+  font-weight: 300;
+  font-size: 12px;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="tel"],
+input[type="date"],
+select,
+textarea {
+  width: 100%;
+  padding: 12px 14px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: border-color 0.2s, box-shadow 0.2s;
+  outline: none;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--secondary);
+  box-shadow: 0 0 0 3px rgba(201, 168, 108, 0.15);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #bbb;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+select {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23777' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 36px;
+}
+
+/* ========== Form Row ========== */
+.form-row {
+  display: flex;
+  gap: 16px;
+}
+
+.form-group.half {
+  flex: 1;
+}
+
+/* ========== Nights Count ========== */
+.nights-count {
+  display: none;
+  font-size: 14px;
+  color: var(--secondary-dark);
+  font-weight: 600;
+  margin-top: 8px;
+  text-align: center;
+}
+
+/* ========== Children Ages ========== */
+.children-ages {
+  margin-top: 12px;
+}
+
+.children-ages label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 8px;
+  display: block;
+}
+
+.ages-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.age-select {
+  width: auto !important;
+  min-width: 100px;
+  flex: 0 0 auto;
+}
+
+/* ========== Chips ========== */
+.chips-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.chip {
+  cursor: pointer;
+}
+
+.chip input {
+  display: none;
+}
+
+.chip-label {
+  display: inline-block;
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: 24px;
+  transition: all 0.2s;
+  user-select: none;
+}
+
+.chip-label:hover {
+  border-color: var(--secondary);
+  color: var(--secondary-dark);
+}
+
+.chip input:checked + .chip-label {
+  background: var(--primary);
+  color: var(--secondary);
+  border-color: var(--primary);
+}
+
+/* ========== Radio Options ========== */
+.radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.radio-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  transition: all 0.2s;
+}
+
+.radio-option:hover {
+  border-color: var(--secondary);
+}
+
+.radio-option input {
+  display: none;
+}
+
+.radio-custom {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border);
+  border-radius: 50%;
+  flex-shrink: 0;
+  position: relative;
+  transition: border-color 0.2s;
+}
+
+.radio-option input:checked ~ .radio-custom {
+  border-color: var(--secondary);
+}
+
+.radio-option input:checked ~ .radio-custom::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 8px;
+  height: 8px;
+  background: var(--secondary);
+  border-radius: 50%;
+}
+
+.radio-option input:checked {
+  background: var(--primary);
+}
+
+.radio-option:has(input:checked) {
+  border-color: var(--secondary);
+  background: #FFFDF7;
+}
+
+.radio-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.radio-detail {
+  font-weight: 300;
+  color: var(--text-light);
+  font-size: 13px;
+}
+
+/* ========== Error Messages ========== */
+.error-msg {
+  display: none;
+  font-size: 12px;
+  color: var(--error);
+  margin-top: 4px;
+}
+
+/* ========== Submit Section ========== */
+.submit-section {
+  text-align: center;
+  padding: 24px 0;
+}
+
+.btn-submit {
+  display: inline-block;
+  width: 100%;
+  max-width: 360px;
+  padding: 16px 32px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--secondary);
+  background: var(--primary);
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.3s;
+  letter-spacing: 1px;
+}
+
+.btn-submit:hover {
+  background: #222;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+}
+
+.btn-submit:disabled {
+  background: #999;
+  cursor: not-allowed;
+}
+
+.submit-hint {
+  font-size: 12px;
+  color: var(--text-light);
+  margin-top: 12px;
+}
+
+/* ========== Footer ========== */
+.footer {
+  text-align: center;
+  padding: 24px 0 8px;
+  border-top: 1px solid var(--border);
+  margin-top: 16px;
+}
+
+.footer p {
+  font-size: 13px;
+  color: var(--text-light);
+  font-weight: 500;
+}
+
+.footer-sub {
+  font-size: 11px !important;
+  font-weight: 300 !important;
+  margin-top: 4px;
+}
+
+/* ========== Confirmation Page ========== */
+.confirmation-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.confirmation-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.confirmation-title {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 12px;
+}
+
+.confirmation-text {
+  font-size: 16px;
+  color: var(--text);
+  margin-bottom: 24px;
+  max-width: 400px;
+}
+
+.confirmation-text strong {
+  color: var(--secondary-dark);
+}
+
+.confirmation-details {
+  background: var(--bg-section);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 24px;
+  margin-bottom: 24px;
+}
+
+.confirmation-details p {
+  font-size: 14px;
+  margin: 4px 0;
+}
+
+.confirmation-note {
+  font-size: 13px;
+  color: var(--text-light);
+  margin-bottom: 32px;
+}
+
+.btn-back {
+  display: inline-block;
+  padding: 12px 32px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--primary);
+  background: transparent;
+  border: 1.5px solid var(--primary);
+  border-radius: var(--radius);
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.btn-back:hover {
+  background: var(--primary);
+  color: var(--secondary);
+}
+
+/* ========== Checkmark Animation ========== */
+.check-animation {
+  margin-bottom: 24px;
+}
+
+.checkmark {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  display: block;
+  stroke-width: 2;
+  stroke: var(--success);
+  stroke-miterlimit: 10;
+  animation: fill 0.4s ease-in-out 0.4s forwards, scale 0.3s ease-in-out 0.9s both;
+}
+
+.checkmark-circle {
+  stroke-dasharray: 166;
+  stroke-dashoffset: 166;
+  stroke-width: 2;
+  stroke-miterlimit: 10;
+  stroke: var(--success);
+  fill: none;
+  animation: stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+}
+
+.checkmark-check {
+  transform-origin: 50% 50%;
+  stroke-dasharray: 48;
+  stroke-dashoffset: 48;
+  animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.8s forwards;
+}
+
+@keyframes stroke {
+  100% { stroke-dashoffset: 0; }
+}
+
+@keyframes scale {
+  0%, 100% { transform: none; }
+  50% { transform: scale3d(1.1, 1.1, 1); }
+}
+
+@keyframes fill {
+  100% { box-shadow: inset 0px 0px 0px 30px transparent; }
+}
+
+/* ========== Report Styles ========== */
+.report-container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 20px;
+}
+
+.report-header {
+  text-align: center;
+  padding-bottom: 24px;
+  border-bottom: 2px solid var(--secondary);
+  margin-bottom: 24px;
+}
+
+.report-meta {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.report-meta h1 {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 4px;
+}
+
+.report-meta p {
+  font-size: 14px;
+  color: var(--text-light);
+  margin: 2px 0;
+}
+
+.report-preferences {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 12px;
+}
+
+.report-preferences .tag {
+  display: inline-block;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--secondary-dark);
+  background: #FFF8EC;
+  border: 1px solid var(--secondary-light);
+  border-radius: 16px;
+}
+
+/* Hotel Card */
+.hotel-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 24px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+
+.hotel-tier {
+  background: var(--primary);
+  color: var(--secondary);
+  padding: 10px 20px;
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
+  letter-spacing: 2px;
+}
+
+.hotel-photos {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+}
+
+.hotel-photos img {
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+}
+
+.hotel-info {
+  padding: 20px;
+}
+
+.hotel-name {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 4px;
+}
+
+.hotel-desc {
+  font-size: 13px;
+  color: var(--text-light);
+  margin-bottom: 12px;
+  font-style: italic;
+}
+
+.hotel-ratings {
+  margin-bottom: 12px;
+}
+
+.hotel-ratings p {
+  font-size: 13px;
+  color: var(--text);
+  margin: 3px 0;
+}
+
+.hotel-ratings .stars {
+  color: var(--secondary);
+}
+
+.hotel-booking {
+  background: var(--bg-section);
+  border-top: 1px solid var(--border);
+  padding: 16px 20px;
+}
+
+.hotel-booking p {
+  font-size: 13px;
+  color: var(--text);
+  margin: 2px 0;
+}
+
+.hotel-price {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--primary);
+  margin-top: 8px;
+}
+
+.hotel-price-note {
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--text-light);
+}
+
+/* CTA Section */
+.report-cta {
+  text-align: center;
+  padding: 32px 20px;
+  background: var(--bg-section);
+  border-radius: var(--radius);
+  margin: 24px 0;
+}
+
+.report-cta h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 16px;
+}
+
+.btn-whatsapp {
+  display: inline-block;
+  padding: 14px 32px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--whatsapp);
+  border: none;
+  border-radius: var(--radius);
+  text-decoration: none;
+  transition: all 0.2s;
+  letter-spacing: 0.5px;
+}
+
+.btn-whatsapp:hover {
+  background: #1ebe57;
+  box-shadow: 0 4px 16px rgba(37, 211, 102, 0.3);
+}
+
+.report-contact {
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--text-light);
+}
+
+.report-contact p {
+  margin: 2px 0;
+}
+
+/* Report Footer */
+.report-footer {
+  text-align: center;
+  padding: 20px 0;
+  border-top: 1px solid var(--border);
+  margin-top: 24px;
+}
+
+.report-footer p {
+  font-size: 12px;
+  color: var(--text-light);
+  margin: 2px 0;
+}
+
+/* ========== Responsive ========== */
+@media (max-width: 600px) {
+  .container {
+    padding: 16px 12px 32px;
+  }
+
+  .page-title {
+    font-size: 22px;
+  }
+
+  .form-section {
+    padding: 16px;
+  }
+
+  .form-row {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .form-group.half {
+    flex: none;
+  }
+
+  .hotel-photos {
+    grid-template-columns: 1fr;
+  }
+
+  .hotel-photos img {
+    height: 200px;
+  }
+}
