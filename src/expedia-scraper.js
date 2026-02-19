@@ -162,7 +162,7 @@ async function searchExpedia(params) {
       // Warm-up: visit homepage first to establish cookies/session
       console.log('  → Warm-up: visiting Expedia homepage...');
       try {
-        await page.goto('https://www.expedia.com.br/', { waitUntil: 'domcontentloaded', timeout: 15000 });
+        await page.goto('https://www.expediataap.com.br/', { waitUntil: 'domcontentloaded', timeout: 15000 });
       } catch (navErr) {
         // If homepage times out, log and continue — cookies may still have been set
         console.log(`  → Warm-up navigation slow (${navErr.message}), continuing anyway...`);
@@ -486,7 +486,7 @@ function buildSearchUrl(destino, checkIn, checkOut, adultos, criancas, idadesCri
     params.set('children', idadesCriancas.join(','));
   }
 
-  return `https://www.expedia.com.br/Hotel-Search?${params}`;
+  return `https://www.expediataap.com.br/Hotel-Search?${params}`;
 }
 
 /**
@@ -497,9 +497,9 @@ function buildDetailUrl(detailUrl, hotelId, checkIn, checkOut, adultos) {
 
   let url;
   if (detailUrl) {
-    url = detailUrl.startsWith('http') ? detailUrl : `https://www.expedia.com.br${detailUrl}`;
+    url = detailUrl.startsWith('http') ? detailUrl : `https://www.expediataap.com.br${detailUrl}`;
   } else {
-    url = `https://www.expedia.com.br/h${hotelId}.Hotel-Information`;
+    url = `https://www.expediataap.com.br/h${hotelId}.Hotel-Information`;
   }
 
   try {
