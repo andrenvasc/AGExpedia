@@ -1,5 +1,13 @@
-const puppeteer = require('puppeteer-core');
+const vanillaPuppeteer = require('puppeteer-core');
+const { addExtra } = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const chromium = require('@sparticuz/chromium');
+
+// Wrap puppeteer-core with stealth plugin
+const puppeteer = addExtra(vanillaPuppeteer);
+puppeteer.use(StealthPlugin());
+
+const MAX_RETRIES = 3;
 
 const BUDGET_RANGES = {
   economico: { min: 0, max: 400 },
@@ -21,249 +29,304 @@ function isProxyConfigured() {
   return !!(process.env.PROXY_HOST && process.env.PROXY_USER && process.env.PROXY_PASS);
 }
 
-async function searchExpedia(params) {
-  const { destino, checkIn, checkOut, adultos, criancas, idadesCriancas, estilos, prioridades, orcamento } = params;
-  let browser;
-
-  try {
-    const useProxy = isProxyConfigured();
-    const proxyHost = process.env.PROXY_HOST || 'gate.decodo.com';
-    const proxyPort = process.env.PROXY_PORT || '7000';
-    const proxyUser = process.env.PROXY_USER;
-    const proxyPass = process.env.PROXY_PASS;
-
-    console.log(`  → Launching browser (proxy: ${useProxy ? proxyHost + ':' + proxyPort : 'none'})...`);
-    chromium.setHeadlessMode = true;
-    chromium.setGraphicsMode = false;
-
-    const launchArgs = [
-      ...chromium.args,
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--single-process',
-      '--no-zygote',
-      '--disable-blink-features=AutomationControlled',
-      '--disable-features=IsolateOrigins,site-per-process',
-      '--lang=pt-BR,pt,en-US,en',
-    ];
-
-    // Add proxy if configured
-    if (useProxy) {
-      launchArgs.push(`--proxy-server=http://${proxyHost}:${proxyPort}`);
-    }
-
-    browser = await puppeteer.launch({
-      args: launchArgs,
-      defaultViewport: { width: 1366, height: 768 },
-      executablePath: await chromium.executablePath(),
-      headless: 'new',
-      timeout: 30000,
-    });
-
-    console.log('  → Browser launched OK');
-    const page = await browser.newPage();
-
-    // Authenticate proxy if configured
-    if (useProxy && proxyUser && proxyPass) {
-      await page.authenticate({ username: proxyUser, password: proxyPass });
-      console.log('  → Proxy authenticated');
-    }
-
-    // --- Stealth measures ---
-    await applyStealthMeasures(page);
-
-    // Intercept API/GraphQL responses to capture hotel data directly
-    const apiResults = [];
-    page.on('response', async (response) => {
-      try {
-        const url = response.url();
-        if (response.status() !== 200) return;
-        const ct = response.headers()['content-type'] || '';
-        if (!ct.includes('json')) return;
-
-        if (url.includes('graphql') || url.includes('api/') || url.includes('search') || url.includes('property')) {
-          const json = await response.json();
-          const hotels = parseApiResponse(json);
-          if (hotels.length > 0) {
-            apiResults.push(...hotels);
-            console.log(`  → API intercepted: ${hotels.length} hotels`);
-          }
-        }
-      } catch {}
-    });
-
-    // Block heavy resources but keep CSS/JS for bot detection evasion
-    await page.setRequestInterception(true);
-    page.on('request', req => {
-      const type = req.resourceType();
-      if (['image', 'font', 'media'].includes(type)) {
-        req.abort();
-      } else {
-        req.continue();
-      }
-    });
-
-    // Navigate to Expedia Hotel-Search
-    const searchUrl = buildSearchUrl(destino, checkIn, checkOut, adultos, criancas, idadesCriancas);
-    console.log('  → Navigating to:', searchUrl);
-
-    await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-    console.log('  → Page loaded:', page.url());
-
-    // Human-like delay
-    await delay(3000 + Math.random() * 3000);
-
-    // Simulate human interaction: scroll down slowly
-    await simulateHumanScroll(page);
-    await delay(2000 + Math.random() * 2000);
-
-    // Strategy 1: API/GraphQL intercepted results
-    let results = deduplicateHotels(apiResults);
-    console.log(`  → Strategy 1 (API intercept): ${results.length} hotels`);
-
-    // Strategy 2: __NEXT_DATA__ embedded JSON
-    if (results.length === 0) {
-      results = await extractFromNextData(page);
-      console.log(`  → Strategy 2 (__NEXT_DATA__): ${results.length} hotels`);
-    }
-
-    // Strategy 3: DOM extraction with multiple selectors
-    if (results.length === 0) {
-      results = await extractFromDOM(page);
-      console.log(`  → Strategy 3 (DOM): ${results.length} hotels`);
-    }
-
-    // Strategy 4: Broad page text parsing
-    if (results.length === 0) {
-      results = await extractFromPageContent(page);
-      console.log(`  → Strategy 4 (page text): ${results.length} hotels`);
-    }
-
-    // Debug info when no results
-    if (results.length === 0) {
-      const title = await page.title();
-      const bodyPreview = await page.evaluate(() =>
-        (document.body?.innerText || '').substring(0, 500)
-      );
-      console.log('  → DEBUG no results. Title:', title);
-      console.log('  → Body:', bodyPreview);
-
-      // Check for bot detection indicators
-      const isBotBlocked = await page.evaluate(() => {
-        const text = document.body?.innerText?.toLowerCase() || '';
-        return text.includes('captcha') ||
-               text.includes('robot') ||
-               text.includes('access denied') ||
-               text.includes('blocked') ||
-               text.includes('please verify') ||
-               text.includes('suspicious');
-      });
-      if (isBotBlocked) {
-        console.log('  → ⚠ BOT DETECTION: Page appears to be blocked by anti-bot system');
-        if (!useProxy) {
-          console.log('  → TIP: Configure a residential proxy (PROXY_HOST, PROXY_USER, PROXY_PASS) to bypass bot detection');
-        }
-      }
-    }
-
-    console.log(`  → ${results.length} raw results`);
-    const filtered = filterResults(results, { estilos, prioridades, orcamento });
-    console.log(`  → ${filtered.length} after filtering`);
-    return filtered;
-
-  } catch (error) {
-    console.error('Expedia scraper error:', error.message);
-    return [];
-  } finally {
-    if (browser) { try { await browser.close(); } catch {} }
-  }
+/**
+ * Generate a random session ID for proxy sticky sessions
+ */
+function generateSessionId() {
+  return 'sess_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
 }
 
 /**
- * Apply comprehensive stealth measures to avoid bot detection
+ * Check if page is blocked by CAPTCHA/bot detection
+ */
+async function isCaptchaPage(page) {
+  try {
+    return await page.evaluate(() => {
+      const text = (document.body?.innerText || '').toLowerCase();
+      const title = (document.title || '').toLowerCase();
+      return text.includes('captcha') ||
+             text.includes('robô') ||
+             text.includes('robot') ||
+             text.includes('access denied') ||
+             text.includes('blocked') ||
+             text.includes('please verify') ||
+             text.includes('suspicious') ||
+             text.includes('mostre que você') ||
+             title.includes('robô') ||
+             title.includes('robot');
+    });
+  } catch {
+    return false;
+  }
+}
+
+async function searchExpedia(params) {
+  const { destino, checkIn, checkOut, adultos, criancas, idadesCriancas, estilos, prioridades, orcamento } = params;
+
+  const useProxy = isProxyConfigured();
+  const proxyHost = process.env.PROXY_HOST || 'gate.decodo.com';
+  const proxyPort = process.env.PROXY_PORT || '7000';
+  const proxyUser = process.env.PROXY_USER;
+  const proxyPass = process.env.PROXY_PASS;
+
+  // Retry loop — each attempt uses a different proxy session (different IP)
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    let browser;
+    try {
+      const sessionId = generateSessionId();
+      console.log(`  → Attempt ${attempt}/${MAX_RETRIES} (proxy: ${useProxy ? proxyHost + ':' + proxyPort : 'none'}, session: ${sessionId})`);
+
+      chromium.setHeadlessMode = true;
+      chromium.setGraphicsMode = false;
+
+      const launchArgs = [
+        ...chromium.args,
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--single-process',
+        '--no-zygote',
+        '--disable-blink-features=AutomationControlled',
+        '--disable-features=IsolateOrigins,site-per-process',
+        '--lang=pt-BR,pt,en-US,en',
+        '--window-size=1366,768',
+      ];
+
+      // Add proxy if configured
+      if (useProxy) {
+        launchArgs.push(`--proxy-server=http://${proxyHost}:${proxyPort}`);
+      }
+
+      browser = await puppeteer.launch({
+        args: launchArgs,
+        defaultViewport: { width: 1366, height: 768 },
+        executablePath: await chromium.executablePath(),
+        headless: 'new',
+        timeout: 30000,
+      });
+
+      console.log('  → Browser launched OK');
+      const page = await browser.newPage();
+
+      // Authenticate proxy with session-based username for sticky IP
+      if (useProxy && proxyUser && proxyPass) {
+        const sessionUser = `${proxyUser}-session-${sessionId}`;
+        await page.authenticate({ username: sessionUser, password: proxyPass });
+        console.log(`  → Proxy authenticated (session: ${sessionId})`);
+      }
+
+      // Apply additional stealth measures on top of the plugin
+      await applyStealthMeasures(page);
+
+      // Intercept API/GraphQL responses to capture hotel data directly
+      const apiResults = [];
+      page.on('response', async (response) => {
+        try {
+          const url = response.url();
+          if (response.status() !== 200) return;
+          const ct = response.headers()['content-type'] || '';
+          if (!ct.includes('json')) return;
+
+          if (url.includes('graphql') || url.includes('api/') || url.includes('search') || url.includes('property')) {
+            const json = await response.json();
+            const hotels = parseApiResponse(json);
+            if (hotels.length > 0) {
+              apiResults.push(...hotels);
+              console.log(`  → API intercepted: ${hotels.length} hotels`);
+            }
+          }
+        } catch {}
+      });
+
+      // NOTE: We intentionally do NOT use setRequestInterception — it is detectable
+      // by anti-bot systems and contributes to being flagged. Let all resources load naturally.
+
+      // Warm-up: visit homepage first to establish cookies/session
+      console.log('  → Warm-up: visiting Expedia homepage...');
+      await page.goto('https://www.expedia.com.br/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await delay(2000 + Math.random() * 2000);
+
+      // Check if already blocked on homepage
+      if (await isCaptchaPage(page)) {
+        console.log(`  → ⚠ CAPTCHA on homepage (attempt ${attempt}/${MAX_RETRIES})`);
+        await browser.close();
+        if (attempt < MAX_RETRIES) {
+          const backoff = 3000 + Math.random() * 5000;
+          console.log(`  → Retrying in ${Math.round(backoff / 1000)}s with new proxy session...`);
+          await delay(backoff);
+          continue;
+        }
+        console.log('  → All attempts blocked by CAPTCHA');
+        return [];
+      }
+
+      // Simulate mouse movement on homepage
+      await simulateMouseMovement(page);
+      await delay(1000 + Math.random() * 1000);
+
+      // Navigate to Expedia Hotel-Search
+      const searchUrl = buildSearchUrl(destino, checkIn, checkOut, adultos, criancas, idadesCriancas);
+      console.log('  → Navigating to:', searchUrl);
+
+      await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+      console.log('  → Page loaded:', page.url());
+
+      // Check for CAPTCHA on search page
+      if (await isCaptchaPage(page)) {
+        console.log(`  → ⚠ CAPTCHA on search page (attempt ${attempt}/${MAX_RETRIES})`);
+        await browser.close();
+        if (attempt < MAX_RETRIES) {
+          const backoff = 3000 + Math.random() * 5000;
+          console.log(`  → Retrying in ${Math.round(backoff / 1000)}s with new proxy session...`);
+          await delay(backoff);
+          continue;
+        }
+        console.log('  → All attempts blocked by CAPTCHA');
+        return [];
+      }
+
+      // Human-like delay
+      await delay(3000 + Math.random() * 3000);
+
+      // Simulate human interaction
+      await simulateMouseMovement(page);
+      await simulateHumanScroll(page);
+      await delay(2000 + Math.random() * 2000);
+
+      // Strategy 1: API/GraphQL intercepted results
+      let results = deduplicateHotels(apiResults);
+      console.log(`  → Strategy 1 (API intercept): ${results.length} hotels`);
+
+      // Strategy 2: __NEXT_DATA__ embedded JSON
+      if (results.length === 0) {
+        results = await extractFromNextData(page);
+        console.log(`  → Strategy 2 (__NEXT_DATA__): ${results.length} hotels`);
+      }
+
+      // Strategy 3: DOM extraction with multiple selectors
+      if (results.length === 0) {
+        results = await extractFromDOM(page);
+        console.log(`  → Strategy 3 (DOM): ${results.length} hotels`);
+      }
+
+      // Strategy 4: Broad page text parsing
+      if (results.length === 0) {
+        results = await extractFromPageContent(page);
+        console.log(`  → Strategy 4 (page text): ${results.length} hotels`);
+      }
+
+      // Debug info when no results
+      if (results.length === 0) {
+        const title = await page.title();
+        const bodyPreview = await page.evaluate(() =>
+          (document.body?.innerText || '').substring(0, 500)
+        );
+        console.log('  → DEBUG no results. Title:', title);
+        console.log('  → Body:', bodyPreview);
+      }
+
+      console.log(`  → ${results.length} raw results`);
+      const filtered = filterResults(results, { estilos, prioridades, orcamento });
+      console.log(`  → ${filtered.length} after filtering`);
+      return filtered;
+
+    } catch (error) {
+      console.error(`Expedia scraper error (attempt ${attempt}):`, error.message);
+      if (attempt >= MAX_RETRIES) return [];
+    } finally {
+      if (browser) { try { await browser.close(); } catch {} }
+    }
+  }
+
+  return [];
+}
+
+/**
+ * Apply additional stealth measures on top of puppeteer-extra-plugin-stealth.
+ * The stealth plugin already handles: webdriver, chrome.runtime, navigator.plugins,
+ * permissions, iframe contentWindow, media codecs, etc.
+ * Here we add extra measures specific to Expedia's detection.
  */
 async function applyStealthMeasures(page) {
-  // Realistic User-Agent (Chrome 122 on Windows 10)
+  // Realistic User-Agent (Chrome 131 on Windows 10 — current stable)
   await page.setUserAgent(
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
   );
 
-  // Set realistic headers
+  // Set realistic headers matching Chrome 131
   await page.setExtraHTTPHeaders({
     'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-    'Sec-CH-UA': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+    'Sec-CH-UA': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
     'Sec-CH-UA-Mobile': '?0',
     'Sec-CH-UA-Platform': '"Windows"',
-    'Sec-Fetch-Dest': 'document',
-    'Sec-Fetch-Mode': 'navigate',
-    'Sec-Fetch-Site': 'none',
-    'Sec-Fetch-User': '?1',
-    'Upgrade-Insecure-Requests': '1',
   });
 
-  // Override navigator properties to hide automation
+  // Additional navigator overrides not covered by stealth plugin
   await page.evaluateOnNewDocument(() => {
-    // Hide webdriver flag
-    Object.defineProperty(navigator, 'webdriver', { get: () => false });
+    // Realistic hardware specs
+    Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
+    Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });
+    Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 0 });
 
-    // Realistic plugins array
-    Object.defineProperty(navigator, 'plugins', {
-      get: () => {
-        const plugins = [
-          { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer', description: 'Portable Document Format' },
-          { name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai', description: '' },
-          { name: 'Native Client', filename: 'internal-nacl-plugin', description: '' },
-        ];
-        plugins.length = 3;
-        return plugins;
-      },
-    });
+    // Realistic screen properties
+    Object.defineProperty(screen, 'colorDepth', { get: () => 24 });
+    Object.defineProperty(screen, 'pixelDepth', { get: () => 24 });
 
-    // Realistic languages
-    Object.defineProperty(navigator, 'languages', {
-      get: () => ['pt-BR', 'pt', 'en-US', 'en'],
-    });
+    // Realistic connection info
+    if (navigator.connection) {
+      Object.defineProperty(navigator.connection, 'rtt', { get: () => 50 });
+      Object.defineProperty(navigator.connection, 'downlink', { get: () => 10 });
+      Object.defineProperty(navigator.connection, 'effectiveType', { get: () => '4g' });
+    }
 
-    // Chrome runtime (exists in real Chrome, missing in headless)
-    window.chrome = {
-      runtime: { id: undefined },
-      loadTimes: function() {},
-      csi: function() {},
+    // Override Date.getTimezoneOffset for Brazilian timezone
+    const origGetTimezoneOffset = Date.prototype.getTimezoneOffset;
+    Date.prototype.getTimezoneOffset = function() {
+      return 180; // UTC-3 (Brasilia)
     };
 
-    // Hide "HeadlessChrome" from user agent
-    const originalQuery = window.navigator.permissions.query;
-    window.navigator.permissions.query = (parameters) =>
-      parameters.name === 'notifications'
-        ? Promise.resolve({ state: Notification.permission })
-        : originalQuery(parameters);
+    // Ensure Intl reports Brazilian locale
+    if (window.Intl) {
+      const origResolvedOptions = Intl.DateTimeFormat.prototype.resolvedOptions;
+      Intl.DateTimeFormat.prototype.resolvedOptions = function() {
+        const result = origResolvedOptions.call(this);
+        if (!result.timeZone || result.timeZone === 'UTC') {
+          result.timeZone = 'America/Sao_Paulo';
+        }
+        return result;
+      };
+    }
 
-    // Canvas fingerprint (add subtle noise)
-    const origGetContext = HTMLCanvasElement.prototype.getContext;
-    HTMLCanvasElement.prototype.getContext = function(type, ...args) {
-      const ctx = origGetContext.call(this, type, ...args);
-      if (type === '2d' && ctx) {
-        const origFillText = ctx.fillText;
-        ctx.fillText = function(...textArgs) {
-          // Add invisible noise
-          textArgs[0] = textArgs[0]; // no-op to create unique stack
-          return origFillText.apply(this, textArgs);
-        };
-      }
-      return ctx;
-    };
-
-    // WebGL vendor/renderer (match real Chrome)
+    // WebGL vendor/renderer (match real Chrome on common hardware)
     const getParameter = WebGLRenderingContext.prototype.getParameter;
     WebGLRenderingContext.prototype.getParameter = function(parameter) {
       if (parameter === 37445) return 'Google Inc. (Intel)';
-      if (parameter === 37446) return 'ANGLE (Intel, Intel(R) UHD Graphics 630, OpenGL 4.5)';
+      if (parameter === 37446) return 'ANGLE (Intel, Intel(R) UHD Graphics 630 (CFL GT2), OpenGL 4.5)';
       return getParameter.call(this, parameter);
     };
   });
+}
+
+/**
+ * Simulate realistic mouse movements across the page
+ */
+async function simulateMouseMovement(page) {
+  try {
+    const viewport = page.viewport();
+    const width = viewport?.width || 1366;
+    const height = viewport?.height || 768;
+
+    // Generate 3-6 random mouse movements
+    const moves = 3 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < moves; i++) {
+      const x = 100 + Math.floor(Math.random() * (width - 200));
+      const y = 100 + Math.floor(Math.random() * (height - 200));
+      await page.mouse.move(x, y, { steps: 5 + Math.floor(Math.random() * 10) });
+      await delay(200 + Math.random() * 400);
+    }
+  } catch {}
 }
 
 /**
