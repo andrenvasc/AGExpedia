@@ -189,8 +189,11 @@ async function searchExpedia(params) {
       const searchUrl = buildSearchUrl(destino, checkIn, checkOut, adultos, criancas, idadesCriancas);
       console.log('  → Navigating to:', searchUrl);
 
-      await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-      console.log('  → Page loaded:', page.url());
+      // Use domcontentloaded instead of networkidle2 — Expedia has persistent
+      // connections (analytics, websockets, ads) that prevent networkidle2 from
+      // resolving for 30-60s. The API interceptor captures data as it arrives.
+      await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      console.log('  → DOM loaded:', page.url());
 
       // Check for CAPTCHA on search page
       if (await withTimeout(isCaptchaPage(page), 5000, 'search CAPTCHA check')) {
@@ -206,13 +209,21 @@ async function searchExpedia(params) {
         return [];
       }
 
-      // Human-like delay (reduced)
-      await delay(1500 + Math.random() * 1500);
+      // Wait for results — poll API interceptor instead of waiting for full networkidle.
+      // This is much faster: we stop as soon as we have data or after a reasonable timeout.
+      console.log('  → Waiting for search results...');
+      const waitStart = Date.now();
+      const MAX_WAIT = 15000; // 15s max wait for results
+      const POLL_INTERVAL = 1000;
+      while (apiResults.length === 0 && (Date.now() - waitStart) < MAX_WAIT) {
+        await delay(POLL_INTERVAL);
+      }
+      console.log(`  → Data wait: ${Date.now() - waitStart}ms, API results so far: ${apiResults.length}`);
 
-      // Simulate human interaction
-      await withTimeout(simulateMouseMovement(page), 5000, 'search mouse movement');
-      await withTimeout(simulateHumanScroll(page), 8000, 'search scroll');
-      await delay(1000 + Math.random() * 1000);
+      // Quick human-like interaction
+      await withTimeout(simulateMouseMovement(page), 3000, 'search mouse movement');
+      await withTimeout(simulateHumanScroll(page), 5000, 'search scroll');
+      await delay(500 + Math.random() * 500);
 
       // Strategy 1: API/GraphQL intercepted results
       let results = deduplicateHotels(apiResults);
