@@ -414,16 +414,19 @@ async function searchExpedia(params) {
       // Use domcontentloaded instead of networkidle2 — Expedia has persistent
       // connections (analytics, websockets, ads) that prevent networkidle2 from
       // resolving for 30-60s. The API interceptor captures data as it arrives.
-      const navResponse = await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      // Wrap in try/catch — timeout doesn't mean failure, the SPA continues loading.
+      let navResponse;
+      try {
+        navResponse = await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      } catch (navErr) {
+        console.log(`  → Navigation slow (${navErr.message}), continuing — SPA may still load...`);
+      }
       const httpStatus = navResponse?.status() || 0;
-      console.log(`  → DOM loaded: ${page.url()} (HTTP ${httpStatus})`);
+      console.log(`  → Page URL: ${page.url()} (HTTP ${httpStatus || 'timeout'})`);
 
-      // HTTP 407 = proxy authentication rejected — credentials wrong or account expired.
-      // No point retrying with different sessions; same credentials will fail every time.
+      // HTTP 407 = proxy authentication rejected
       if (httpStatus === 407) {
         console.log('  → ⚠ HTTP 407: Proxy authentication failed');
-        console.log('  → Check PROXY_USER/PROXY_PASS env vars or Decodo account status (expired/no traffic)');
-        console.log('  → Skipping all retry attempts — falling through to Amadeus');
         await browser.close();
         return [];
       }
@@ -494,26 +497,46 @@ async function searchExpedia(params) {
         return [];
       }
 
-      // Wait for hotel results — poll both API interceptor and DOM for hotel cards.
-      console.log('  → Waiting for search results...');
+      // Wait for hotel results — prioritize GraphQL API intercept over DOM.
+      // The TAAP portal fires a GraphQL request that returns all hotel data with
+      // prices, ratings, and detail URLs. DOM cards appear first but have less data.
+      console.log('  → Waiting for search results (API + DOM)...');
       const waitStart = Date.now();
-      const MAX_WAIT = 20000; // 20s max wait for results
+      const MAX_WAIT = 40000; // 40s — TAAP can be slow, especially through proxy
       const POLL_INTERVAL = 1000;
-      while (apiResults.length === 0 && (Date.now() - waitStart) < MAX_WAIT) {
-        // Also check if hotel cards appeared in DOM (fallback if API interceptor misses)
-        const hasCards = await page.evaluate(() =>
-          document.querySelectorAll(
-            '[data-stid="property-listing"], [data-testid="property-card"], .uitk-card-content-section'
-          ).length > 0
-        ).catch(() => false);
-        if (hasCards) {
-          console.log('  → Hotel cards detected in DOM, waiting 2s for more to load...');
-          await delay(2000); // Let remaining cards load
+      let domCardsDetected = false;
+
+      while ((Date.now() - waitStart) < MAX_WAIT) {
+        // Check if API interceptor got results — this is the best source
+        if (apiResults.length > 0) {
+          console.log(`  → API intercepted ${apiResults.length} hotels, waiting 3s for more...`);
+          await delay(3000); // Let additional API responses arrive
           break;
         }
+
+        // Check DOM cards as a progress indicator (not as final data source)
+        if (!domCardsDetected) {
+          const hasCards = await page.evaluate(() =>
+            document.querySelectorAll(
+              '[data-stid="property-listing"], [data-testid="property-card"], .uitk-card-content-section'
+            ).length > 0
+          ).catch(() => false);
+          if (hasCards) {
+            domCardsDetected = true;
+            console.log('  → Hotel cards detected in DOM, waiting for API data...');
+            // Don't break — keep waiting for the GraphQL response which has full data
+          }
+        }
+
+        // If DOM cards appeared 10s ago and still no API data, give up on API
+        if (domCardsDetected && (Date.now() - waitStart) > 15000) {
+          console.log('  → DOM cards present but no API data after 15s, proceeding with DOM...');
+          break;
+        }
+
         await delay(POLL_INTERVAL);
       }
-      console.log(`  → Data wait: ${Date.now() - waitStart}ms, API results: ${apiResults.length}`);
+      console.log(`  → Data wait: ${Date.now() - waitStart}ms, API results: ${apiResults.length}, DOM cards: ${domCardsDetected}`);
 
       // Quick human-like interaction (non-fatal if it fails)
       try { await withTimeout(simulateMouseMovement(page), 3000, 'search mouse movement'); } catch {}
