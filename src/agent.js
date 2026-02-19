@@ -91,12 +91,12 @@ async function processQuotation(data, onProgress) {
     // Filter by budget
     searchResults = filterByBudget(searchResults, orcamentos);
 
-    console.log(`[${quotationId}] Search returned ${searchResults.length} results`);
+    console.log(`[${quotationId}] Search returned ${searchResults.length} results (with room details from Phase 2)`);
     emit('progress', {
       step: 'search',
       status: 'done',
-      message: `${searchResults.length} hotéis encontrados`,
-      progress: 35,
+      message: `${searchResults.length} hotéis encontrados com detalhes de quartos`,
+      progress: 50,
     });
 
     // Step 2: Enrich with reviews
@@ -105,7 +105,7 @@ async function processQuotation(data, onProgress) {
       step: 'reviews',
       status: 'active',
       message: 'Coletando avaliações...',
-      progress: 40,
+      progress: 55,
     });
 
     const hotelsWithReviews = await enrichWithReviews(searchResults);

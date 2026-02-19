@@ -294,6 +294,26 @@ async function searchExpedia(params) {
       }
 
       console.log(`  → ${results.length} raw results`);
+
+      // ── Phase 2: Scrape individual hotel detail pages ──
+      // Enter each hotel to get room types, prices, amenities, and descriptions.
+      if (results.length > 0) {
+        const maxDetails = Math.min(results.length, 8);
+        console.log(`  → Phase 2: Scraping details for ${maxDetails} hotels...`);
+
+        for (let i = 0; i < maxDetails; i++) {
+          console.log(`  → [${i + 1}/${maxDetails}] ${results[i].name}`);
+          results[i] = await scrapeHotelDetail(page, results[i], checkIn, checkOut, adultos);
+
+          // Human-like delay between hotel pages
+          if (i < maxDetails - 1) {
+            await delay(1500 + Math.random() * 2000);
+          }
+        }
+
+        console.log(`  → Phase 2 complete`);
+      }
+
       const filtered = filterResults(results, { estilos, prioridades, orcamento });
       console.log(`  → ${filtered.length} after filtering`);
       return filtered;
@@ -440,6 +460,248 @@ function buildSearchUrl(destino, checkIn, checkOut, adultos, criancas, idadesCri
 }
 
 /**
+ * Build a detail-page URL for a hotel, including dates & guest params
+ */
+function buildDetailUrl(detailUrl, hotelId, checkIn, checkOut, adultos) {
+  if (!detailUrl && !hotelId) return '';
+
+  let url;
+  if (detailUrl) {
+    url = detailUrl.startsWith('http') ? detailUrl : `https://www.expedia.com.br${detailUrl}`;
+  } else {
+    url = `https://www.expedia.com.br/h${hotelId}.Hotel-Information`;
+  }
+
+  try {
+    const parsed = new URL(url);
+    parsed.searchParams.set('chkin', checkIn);
+    parsed.searchParams.set('chkout', checkOut);
+    parsed.searchParams.set('adults', String(adultos || 2));
+    parsed.searchParams.set('rooms', '1');
+    return parsed.toString();
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Scrape an individual hotel detail page for rooms, amenities, photos, description.
+ * Non-fatal — returns original hotel data if anything fails.
+ */
+async function scrapeHotelDetail(page, hotel, checkIn, checkOut, adultos) {
+  const url = buildDetailUrl(hotel.detailUrl, hotel.hotelId, checkIn, checkOut, adultos);
+  if (!url) {
+    console.log(`    → No detail URL for ${hotel.name}, skipping`);
+    return hotel;
+  }
+
+  try {
+    console.log(`    → Opening: ${url.substring(0, 100)}...`);
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+
+    // Wait for SPA to render content
+    try {
+      await page.waitForFunction(
+        () => (document.body?.innerText || '').length > 200,
+        { timeout: 12000, polling: 500 }
+      );
+    } catch {}
+
+    // Check for CAPTCHA
+    let blocked = false;
+    try { blocked = await withTimeout(isCaptchaPage(page), 3000, 'detail CAPTCHA'); } catch {}
+    if (blocked) {
+      console.log(`    → CAPTCHA on detail page, keeping search data`);
+      return hotel;
+    }
+
+    // Wait for room/price content to appear
+    try {
+      await page.waitForFunction(
+        () => {
+          const text = (document.body?.innerText || '').toLowerCase();
+          return text.includes('r$') && (text.includes('quarto') || text.includes('room') || text.includes('suite') || text.includes('cama'));
+        },
+        { timeout: 10000, polling: 500 }
+      );
+    } catch {}
+
+    // Extract rooms
+    let rooms = [];
+    try {
+      rooms = await withTimeout(page.evaluate(() => {
+        const results = [];
+
+        // Multiple selector strategies for room offer cards
+        const offerSelectors = [
+          '[data-stid="offer-listing"]',
+          '[data-stid="property-offer"]',
+          '[data-stid="section-room-list"] [class*="card"]',
+          '[data-testid="offer-card"]',
+          '[data-stid="price-lockup-wrapper"]',
+        ];
+
+        let cards = [];
+        for (const sel of offerSelectors) {
+          cards = document.querySelectorAll(sel);
+          if (cards.length > 0) break;
+        }
+
+        // Broader fallback: look for sections with price + room keywords
+        if (cards.length === 0) {
+          const sections = document.querySelectorAll('[class*="offer"], [class*="room"], [role="group"]');
+          for (const sec of sections) {
+            const t = (sec.innerText || '').toLowerCase();
+            if (t.includes('r$') && (t.includes('cama') || t.includes('quarto') || t.includes('suite'))) {
+              cards = sec.children;
+              break;
+            }
+          }
+        }
+
+        Array.from(cards).slice(0, 6).forEach(card => {
+          const text = card.innerText || '';
+
+          // Room name
+          let name = '';
+          for (const sel of ['h3', 'h4', 'h2', '[data-stid="room-type-name"]', '[class*="room-name"]', '[class*="title"]']) {
+            const el = card.querySelector(sel);
+            if (el?.textContent?.trim()) { name = el.textContent.trim(); break; }
+          }
+
+          // Price
+          const priceMatch = text.match(/R\$\s*([\d.,]+)/);
+          const price = priceMatch
+            ? parseFloat(priceMatch[1].replace(/\./g, '').replace(',', '.'))
+            : 0;
+
+          // Bed info
+          const bedMatch = text.match(/\d+\s*(cama|bed)[^.\n]*/i);
+          const beds = bedMatch ? bedMatch[0].trim() : '';
+
+          // Cancellation policy
+          let cancellation = '';
+          if (/cancelamento\s+gr[aá]tis/i.test(text)) cancellation = 'Cancelamento grátis';
+          else if (/n[aã]o[\s-]*reembols[aá]vel/i.test(text)) cancellation = 'Não reembolsável';
+          else if (/free\s+cancellation/i.test(text)) cancellation = 'Cancelamento grátis';
+          else if (/non[\s-]*refundable/i.test(text)) cancellation = 'Não reembolsável';
+
+          // Max guests
+          const guestMatch = text.match(/(\d+)\s*(hóspede|guest|pessoa)/i);
+          const maxGuests = guestMatch ? parseInt(guestMatch[1]) : 0;
+
+          if (name || price) {
+            results.push({
+              name: name || 'Quarto',
+              price,
+              priceDisplay: priceMatch ? `R$ ${priceMatch[1]}` : '',
+              beds,
+              cancellation,
+              maxGuests,
+            });
+          }
+        });
+
+        return results;
+      }), 8000, 'room extraction');
+    } catch {}
+
+    // Extract amenities
+    let amenities = [];
+    try {
+      amenities = await withTimeout(page.evaluate(() => {
+        const items = [];
+
+        const selectors = [
+          '[data-stid="section-amenities"] li',
+          '[data-stid="amenity-group"] li',
+          '[data-stid="content-hotel-amenities"] li',
+          '[data-stid="amenity-item"]',
+          '.amenity-item',
+        ];
+
+        let elements = [];
+        for (const sel of selectors) {
+          elements = document.querySelectorAll(sel);
+          if (elements.length > 0) break;
+        }
+
+        elements.forEach(el => {
+          const t = el.textContent?.trim();
+          if (t && t.length < 60 && !items.includes(t)) items.push(t);
+        });
+
+        // Fallback: detect common amenity keywords in page text
+        if (items.length === 0) {
+          const body = (document.body?.innerText || '').toLowerCase();
+          const keywords = [
+            'Wi-Fi', 'Piscina', 'Academia', 'Spa', 'Restaurante',
+            'Estacionamento', 'Ar condicionado', 'Café da manhã',
+            'Bar', 'Room service', 'Lavanderia', 'Pet friendly',
+          ];
+          for (const kw of keywords) {
+            if (body.includes(kw.toLowerCase())) items.push(kw);
+          }
+        }
+
+        return items.slice(0, 15);
+      }), 5000, 'amenity extraction');
+    } catch {}
+
+    // Extract description if missing
+    let description = hotel.description || '';
+    if (!description) {
+      try {
+        description = await page.evaluate(() => {
+          for (const sel of [
+            '[data-stid="content-hotel-description"]',
+            '[data-stid="section-description"] p',
+            '.hotel-description',
+          ]) {
+            const el = document.querySelector(sel);
+            if (el?.textContent?.trim()?.length > 30) {
+              return el.textContent.trim().substring(0, 300);
+            }
+          }
+          return '';
+        }) || '';
+      } catch {}
+    }
+
+    // Extract more photos
+    let photos = hotel.photos || [];
+    try {
+      const morePhotos = await page.evaluate(() => {
+        return Array.from(document.querySelectorAll('img[src*="http"]'))
+          .map(img => img.src)
+          .filter(src => src.includes('lodging') || src.includes('hotel') || src.includes('images.trvl'))
+          .filter((v, i, a) => a.indexOf(v) === i)
+          .slice(0, 5);
+      });
+      if (morePhotos.length > photos.length) photos = morePhotos;
+    } catch {}
+
+    console.log(`    → ${rooms.length} rooms, ${amenities.length} amenities`);
+
+    return {
+      ...hotel,
+      rooms: rooms.length > 0 ? rooms : hotel.rooms || [],
+      amenities: amenities.length > 0 ? amenities : hotel.amenities || [],
+      description: description || hotel.description || '',
+      photos,
+      // Use cheapest room as primary price/type if available
+      ...(rooms.length > 0 && rooms[0].price ? {
+        pricePerNight: rooms[0].price,
+        roomType: rooms[0].name,
+      } : {}),
+    };
+  } catch (err) {
+    console.log(`    → Detail failed: ${err.message}`);
+    return hotel;
+  }
+}
+
+/**
  * Parse hotel data from intercepted API/GraphQL responses
  */
 function parseApiResponse(json) {
@@ -485,6 +747,12 @@ function parseApiResponse(json) {
         prop.thumbnail ||
         '';
 
+      // Extract detail page URL or hotel ID for Phase 2 scraping
+      const detailUrl =
+        prop.pdpUrl || prop.propertyUrl || prop.destinationUrl || prop.url || '';
+      const hotelId =
+        prop.id || prop.propertyId || '';
+
       hotels.push({
         name,
         location: neighborhood,
@@ -495,7 +763,10 @@ function parseApiResponse(json) {
         description: prop.description || '',
         roomType: 'Standard',
         amenities: [],
+        rooms: [],
         reviewCount,
+        detailUrl,
+        hotelId,
       });
     }
   } catch (e) {
@@ -535,6 +806,9 @@ async function extractFromNextData(page) {
                 description: '',
                 roomType: 'Standard',
                 amenities: [],
+                rooms: [],
+                hotelId: item.id || item.propertyId || '',
+                detailUrl: item.pdpUrl || item.propertyUrl || '',
               });
             }
             if (typeof item === 'object') findHotels(item, depth + 1);
@@ -614,13 +888,17 @@ async function extractFromDOM(page) {
       const img = card.querySelector('img[src*="http"]');
       const photo = img?.src || '';
 
+      // Extract link to hotel detail page
+      const linkEl = card.closest('a[href]') || card.querySelector('a[href]');
+      const detailUrl = linkEl?.href || '';
+
       const pc = priceText.replace(/[^\d.,]/g, '').replace(/\./g, '').replace(',', '.');
       const pricePerNight = parseFloat(pc) || 0;
       const rm = ratingText.match(/[\d.,]+/);
       const rating = rm ? parseFloat(rm[0].replace(',', '.')) : 0;
 
       if (name) {
-        hotels.push({ name, location, rating, pricePerNight, priceTotal: priceText, photos: photo ? [photo] : [], description: '', roomType: 'Standard', amenities: [] });
+        hotels.push({ name, location, rating, pricePerNight, priceTotal: priceText, photos: photo ? [photo] : [], description: '', roomType: 'Standard', amenities: [], rooms: [], detailUrl });
       }
     });
 

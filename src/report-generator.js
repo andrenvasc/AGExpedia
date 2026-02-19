@@ -112,6 +112,20 @@ async function generateReport(data) {
     .payment-info li { font-size: 13px; color: #333; margin: 6px 0; padding-left: 20px; position: relative; }
     .payment-info li::before { content: '\\2713'; position: absolute; left: 0; color: #2E7D32; font-weight: 700; }
     .report-number { font-size: 13px; color: #999; margin-top: 4px; }
+    .hotel-location { font-size: 13px; color: #666; margin: 4px 0 8px; }
+    .hotel-rooms { padding: 12px 20px; border-top: 1px solid #eee; }
+    .hotel-rooms h4 { font-size: 13px; font-weight: 600; color: #333; margin: 0 0 8px; }
+    .hotel-rooms ul { list-style: none; padding: 0; margin: 0; }
+    .room-option { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+    .room-option:last-child { border-bottom: none; }
+    .room-name { font-weight: 500; color: #333; }
+    .room-beds { color: #777; font-size: 12px; }
+    .room-cancel { font-size: 11px; padding: 2px 6px; border-radius: 4px; }
+    .room-cancel-free { background: #E8F5E9; color: #2E7D32; }
+    .room-cancel-norefund { background: #FFF3E0; color: #E65100; }
+    .room-price { margin-left: auto; font-weight: 600; color: #1565C0; }
+    .hotel-amenities { padding: 8px 20px 4px; display: flex; flex-wrap: wrap; gap: 6px; }
+    .amenity-tag { font-size: 11px; background: #F5F5F5; color: #555; padding: 3px 8px; border-radius: 12px; border: 1px solid #E0E0E0; }
   </style>
 </head>
 <body>
@@ -227,15 +241,42 @@ function buildHotelCard(hotel, checkIn, checkOut, nights, adultos) {
     }
   }
 
+  // Room options
+  let roomsHtml = '';
+  if (hotel.rooms && hotel.rooms.length > 0) {
+    const roomItems = hotel.rooms.slice(0, 4).map(room => {
+      const pricePart = room.priceDisplay || (room.price ? `R$ ${room.price.toFixed(2).replace('.', ',')}` : '');
+      const bedsPart = room.beds ? `<span class="room-beds">${escapeHtml(room.beds)}</span>` : '';
+      const cancelPart = room.cancellation ? `<span class="room-cancel ${room.cancellation.includes('grátis') ? 'room-cancel-free' : 'room-cancel-norefund'}">${escapeHtml(room.cancellation)}</span>` : '';
+      return `<li class="room-option">
+        <span class="room-name">${escapeHtml(room.name)}</span>
+        ${bedsPart}
+        ${cancelPart}
+        ${pricePart ? `<span class="room-price">${pricePart}/noite</span>` : ''}
+      </li>`;
+    }).join('');
+    roomsHtml = `<div class="hotel-rooms"><h4>Tipos de Quarto</h4><ul>${roomItems}</ul></div>`;
+  }
+
+  // Amenities
+  let amenitiesHtml = '';
+  if (hotel.amenities && hotel.amenities.length > 0) {
+    const tags = hotel.amenities.slice(0, 8).map(a => `<span class="amenity-tag">${escapeHtml(a)}</span>`).join('');
+    amenitiesHtml = `<div class="hotel-amenities">${tags}</div>`;
+  }
+
   return `
     <div class="hotel-card">
       <div class="hotel-tier">${tierLabel} <span style="margin-left:8px; font-size:13px; letter-spacing:1px;">${tierName}</span></div>
       ${photosHtml}
       <div class="hotel-info">
         <h3 class="hotel-name">${escapeHtml(hotel.name)}</h3>
+        ${hotel.location ? `<p class="hotel-location">&#128205; ${escapeHtml(hotel.location)}</p>` : ''}
         ${hotel.description ? `<p class="hotel-desc">"${escapeHtml(hotel.description)}"</p>` : ''}
         ${ratingsHtml ? `<div class="hotel-ratings">${ratingsHtml}</div>` : ''}
+        ${amenitiesHtml}
       </div>
+      ${roomsHtml}
       <div class="hotel-booking">
         <p>${checkIn} - ${checkOut} (${nights} noite${nights > 1 ? 's' : ''})</p>
         <p>${adultos} adulto${adultos > 1 ? 's' : ''} - ${escapeHtml(hotel.roomType || 'Quarto Standard')}</p>
