@@ -40,13 +40,6 @@ function isProxyConfigured() {
 }
 
 /**
- * Generate a random session ID for proxy sticky sessions
- */
-function generateSessionId() {
-  return 'sess_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
-}
-
-/**
  * Check if page is blocked by CAPTCHA/bot detection
  */
 async function isCaptchaPage(page) {
@@ -75,16 +68,18 @@ async function searchExpedia(params) {
 
   const useProxy = isProxyConfigured();
   const proxyHost = process.env.PROXY_HOST || 'gate.decodo.com';
-  const proxyPort = process.env.PROXY_PORT || '7000';
+  const basePort = parseInt(process.env.PROXY_PORT || '10001', 10);
   const proxyUser = process.env.PROXY_USER;
   const proxyPass = process.env.PROXY_PASS;
 
-  // Retry loop — each attempt uses a different proxy session (different IP)
+  // Retry loop — each attempt uses a different proxy port (= different IP)
+  // Decodo endpoint:port mode: each port (10001, 10002, 10003) is a separate sticky session.
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     let browser;
     try {
-      const sessionId = generateSessionId();
-      console.log(`  → Attempt ${attempt}/${MAX_RETRIES} (proxy: ${useProxy ? proxyHost + ':' + proxyPort : 'none'}, session: ${sessionId})`);
+      // Rotate port on each attempt to get a different IP
+      const proxyPort = basePort + (attempt - 1);
+      console.log(`  → Attempt ${attempt}/${MAX_RETRIES} (proxy: ${useProxy ? proxyHost + ':' + proxyPort : 'none'})`);
 
       chromium.setHeadlessMode = true;
       chromium.setGraphicsMode = false;
@@ -119,11 +114,11 @@ async function searchExpedia(params) {
       console.log('  → Browser launched OK');
       const page = await browser.newPage();
 
-      // Authenticate proxy with session-based username for sticky IP
+      // Authenticate proxy — use plain username for endpoint:port mode.
+      // Decodo endpoint:port: IP rotation is via port, NOT username suffix.
       if (useProxy && proxyUser && proxyPass) {
-        const sessionUser = `${proxyUser}-session-${sessionId}`;
-        await page.authenticate({ username: sessionUser, password: proxyPass });
-        console.log(`  → Proxy authenticated (session: ${sessionId})`);
+        await page.authenticate({ username: proxyUser, password: proxyPass });
+        console.log(`  → Proxy authenticated (user: ${proxyUser}, port: ${proxyPort})`);
       }
 
       // Apply additional stealth measures on top of the plugin
@@ -184,7 +179,7 @@ async function searchExpedia(params) {
         await browser.close();
         if (attempt < MAX_RETRIES) {
           const backoff = 3000 + Math.random() * 5000;
-          console.log(`  → Retrying in ${Math.round(backoff / 1000)}s with new proxy session...`);
+          console.log(`  → Retrying in ${Math.round(backoff / 1000)}s with new proxy port...`);
           await delay(backoff);
           continue;
         }
@@ -260,7 +255,7 @@ async function searchExpedia(params) {
         browser = null;
         if (attempt < MAX_RETRIES) {
           const backoff = 3000 + Math.random() * 5000;
-          console.log(`  → Retrying in ${Math.round(backoff / 1000)}s with new proxy session...`);
+          console.log(`  → Retrying in ${Math.round(backoff / 1000)}s with new proxy port...`);
           await delay(backoff);
           continue;
         }
