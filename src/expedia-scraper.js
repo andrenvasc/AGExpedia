@@ -9,6 +9,16 @@ puppeteer.use(StealthPlugin());
 
 const MAX_RETRIES = 3;
 
+/**
+ * Run a promise with a timeout. Rejects if not resolved within `ms`.
+ */
+function withTimeout(promise, ms, label = 'operation') {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`Timeout: ${label} exceeded ${ms}ms`)), ms)),
+  ]);
+}
+
 const BUDGET_RANGES = {
   economico: { min: 0, max: 400 },
   moderado: { min: 400, max: 800 },
@@ -144,11 +154,19 @@ async function searchExpedia(params) {
 
       // Warm-up: visit homepage first to establish cookies/session
       console.log('  → Warm-up: visiting Expedia homepage...');
-      await page.goto('https://www.expedia.com.br/', { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await delay(2000 + Math.random() * 2000);
+      try {
+        await page.goto('https://www.expedia.com.br/', { waitUntil: 'domcontentloaded', timeout: 15000 });
+      } catch (navErr) {
+        // If homepage times out, log and continue — cookies may still have been set
+        console.log(`  → Warm-up navigation slow (${navErr.message}), continuing anyway...`);
+      }
+      console.log('  → Warm-up: homepage loaded');
+      await delay(800 + Math.random() * 700);
 
       // Check if already blocked on homepage
-      if (await isCaptchaPage(page)) {
+      console.log('  → Warm-up: checking CAPTCHA...');
+      const homepageCaptcha = await withTimeout(isCaptchaPage(page), 5000, 'CAPTCHA check');
+      if (homepageCaptcha) {
         console.log(`  → ⚠ CAPTCHA on homepage (attempt ${attempt}/${MAX_RETRIES})`);
         await browser.close();
         if (attempt < MAX_RETRIES) {
@@ -161,9 +179,11 @@ async function searchExpedia(params) {
         return [];
       }
 
-      // Simulate mouse movement on homepage
-      await simulateMouseMovement(page);
-      await delay(1000 + Math.random() * 1000);
+      // Quick mouse movement to look human
+      console.log('  → Warm-up: simulating mouse...');
+      await withTimeout(simulateMouseMovement(page), 5000, 'mouse movement');
+      await delay(500 + Math.random() * 500);
+      console.log('  → Warm-up complete');
 
       // Navigate to Expedia Hotel-Search
       const searchUrl = buildSearchUrl(destino, checkIn, checkOut, adultos, criancas, idadesCriancas);
@@ -173,7 +193,7 @@ async function searchExpedia(params) {
       console.log('  → Page loaded:', page.url());
 
       // Check for CAPTCHA on search page
-      if (await isCaptchaPage(page)) {
+      if (await withTimeout(isCaptchaPage(page), 5000, 'search CAPTCHA check')) {
         console.log(`  → ⚠ CAPTCHA on search page (attempt ${attempt}/${MAX_RETRIES})`);
         await browser.close();
         if (attempt < MAX_RETRIES) {
@@ -186,13 +206,13 @@ async function searchExpedia(params) {
         return [];
       }
 
-      // Human-like delay
-      await delay(3000 + Math.random() * 3000);
+      // Human-like delay (reduced)
+      await delay(1500 + Math.random() * 1500);
 
       // Simulate human interaction
-      await simulateMouseMovement(page);
-      await simulateHumanScroll(page);
-      await delay(2000 + Math.random() * 2000);
+      await withTimeout(simulateMouseMovement(page), 5000, 'search mouse movement');
+      await withTimeout(simulateHumanScroll(page), 8000, 'search scroll');
+      await delay(1000 + Math.random() * 1000);
 
       // Strategy 1: API/GraphQL intercepted results
       let results = deduplicateHotels(apiResults);
