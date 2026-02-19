@@ -8,6 +8,8 @@ const puppeteer = addExtra(vanillaPuppeteer);
 puppeteer.use(StealthPlugin());
 
 const MAX_RETRIES = 3;
+const TAAP_BASE = 'https://www.expediataap.com.br';
+const TAAP_SIGNIN_URL = `${TAAP_BASE}/taap/signin`;
 
 /**
  * Run a promise with a timeout. Rejects if not resolved within `ms`.
@@ -37,6 +39,202 @@ function delay(ms) {
  */
 function isProxyConfigured() {
   return !!(process.env.PROXY_HOST && process.env.PROXY_USER && process.env.PROXY_PASS);
+}
+
+/**
+ * Check if TAAP credentials are configured
+ */
+function isTaapConfigured() {
+  return !!(process.env.EXPEDIA_USER && process.env.EXPEDIA_PASS);
+}
+
+/**
+ * Login to Expedia TAAP portal.
+ * Returns true if login succeeded, false otherwise.
+ */
+async function loginToTaap(page) {
+  const email = process.env.EXPEDIA_USER;
+  const password = process.env.EXPEDIA_PASS;
+
+  if (!email || !password) {
+    console.log('  → ⚠ TAAP credentials not configured (EXPEDIA_USER / EXPEDIA_PASS)');
+    return false;
+  }
+
+  console.log(`  → TAAP login: navigating to signin page...`);
+  try {
+    await page.goto(TAAP_SIGNIN_URL, { waitUntil: 'domcontentloaded', timeout: 20000 });
+  } catch (navErr) {
+    console.log(`  → TAAP login: navigation slow (${navErr.message}), continuing...`);
+  }
+  await delay(1500 + Math.random() * 1000);
+
+  // Check if we're already logged in (no signin form)
+  const isSigninPage = await page.evaluate(() => {
+    const url = window.location.href;
+    const text = (document.body?.innerText || '').toLowerCase();
+    return url.includes('/signin') || (text.includes('fazer login') && text.includes('senha'));
+  }).catch(() => false);
+
+  if (!isSigninPage) {
+    console.log('  → TAAP login: already authenticated (no signin form)');
+    return true;
+  }
+
+  // Wait for form elements to render
+  console.log('  → TAAP login: waiting for form...');
+  try {
+    await page.waitForFunction(
+      () => {
+        const inputs = document.querySelectorAll('input[type="email"], input[type="text"], input[name="email"], input[id*="email"], input[id*="user"]');
+        return inputs.length > 0;
+      },
+      { timeout: 10000, polling: 500 }
+    );
+  } catch {
+    console.log('  → TAAP login: form not found, trying generic input selectors...');
+  }
+
+  // Find and fill email field
+  console.log(`  → TAAP login: entering email (${email.substring(0, 3)}***)...`);
+  const emailFilled = await page.evaluate((emailValue) => {
+    // Try multiple selectors for the email field
+    const selectors = [
+      'input[type="email"]',
+      'input[name="email"]',
+      'input[id*="email"]',
+      'input[id*="user"]',
+      'input[name="username"]',
+      'input[autocomplete="email"]',
+      'input[autocomplete="username"]',
+    ];
+
+    for (const sel of selectors) {
+      const input = document.querySelector(sel);
+      if (input) {
+        input.focus();
+        input.value = emailValue;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        return sel;
+      }
+    }
+
+    // Fallback: first text/email-like input on the page
+    const allInputs = document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="checkbox"])');
+    if (allInputs.length > 0) {
+      allInputs[0].focus();
+      allInputs[0].value = emailValue;
+      allInputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+      allInputs[0].dispatchEvent(new Event('change', { bubbles: true }));
+      return 'fallback-first-input';
+    }
+
+    return null;
+  }, email).catch(() => null);
+
+  if (!emailFilled) {
+    console.log('  → TAAP login: could not find email field');
+    return false;
+  }
+  console.log(`  → TAAP login: email entered (selector: ${emailFilled})`);
+  await delay(500 + Math.random() * 500);
+
+  // Find and fill password field
+  console.log('  → TAAP login: entering password...');
+  const passFilled = await page.evaluate((passValue) => {
+    const input = document.querySelector('input[type="password"]');
+    if (input) {
+      input.focus();
+      input.value = passValue;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    }
+    return false;
+  }, password).catch(() => false);
+
+  if (!passFilled) {
+    console.log('  → TAAP login: could not find password field');
+    return false;
+  }
+  console.log('  → TAAP login: password entered');
+  await delay(500 + Math.random() * 500);
+
+  // Click submit button
+  console.log('  → TAAP login: submitting form...');
+  const submitted = await page.evaluate(() => {
+    // Try multiple selectors for the submit button
+    const selectors = [
+      'button[type="submit"]',
+      'input[type="submit"]',
+      'button[data-stid="login-button"]',
+      'button[id*="login"]',
+      'button[id*="signin"]',
+    ];
+
+    for (const sel of selectors) {
+      const btn = document.querySelector(sel);
+      if (btn) {
+        btn.click();
+        return sel;
+      }
+    }
+
+    // Fallback: find button with login text
+    const buttons = document.querySelectorAll('button');
+    for (const btn of buttons) {
+      const text = (btn.textContent || '').toLowerCase();
+      if (text.includes('login') || text.includes('entrar') || text.includes('fazer login') || text.includes('sign in')) {
+        btn.click();
+        return 'fallback-text-match';
+      }
+    }
+
+    return null;
+  }).catch(() => null);
+
+  if (!submitted) {
+    // Try pressing Enter on the password field as fallback
+    console.log('  → TAAP login: no submit button found, pressing Enter...');
+    await page.keyboard.press('Enter');
+  } else {
+    console.log(`  → TAAP login: form submitted (selector: ${submitted})`);
+  }
+
+  // Wait for navigation after login
+  console.log('  → TAAP login: waiting for authentication...');
+  try {
+    await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 20000 });
+  } catch {
+    // Navigation might not trigger if it's SPA-style
+    console.log('  → TAAP login: no hard navigation, checking page state...');
+    await delay(3000);
+  }
+
+  // Verify login succeeded
+  const loginResult = await page.evaluate(() => {
+    const url = window.location.href;
+    const text = (document.body?.innerText || '').toLowerCase();
+    const isStillSignin = url.includes('/signin') && (text.includes('fazer login') || text.includes('sign in'));
+    const hasError = text.includes('senha incorreta') || text.includes('invalid') ||
+                     text.includes('incorrect') || text.includes('erro') ||
+                     text.includes('falha') || text.includes('failed');
+    return { url, isStillSignin, hasError, title: document.title };
+  }).catch(() => ({ url: '', isStillSignin: true, hasError: false, title: '' }));
+
+  if (loginResult.hasError) {
+    console.log(`  → TAAP login: ⚠ login failed (credentials error). URL: ${loginResult.url}`);
+    return false;
+  }
+
+  if (loginResult.isStillSignin) {
+    console.log(`  → TAAP login: ⚠ still on signin page. Title: "${loginResult.title}"`);
+    return false;
+  }
+
+  console.log(`  → TAAP login: ✓ authenticated! URL: ${loginResult.url}`);
+  return true;
 }
 
 /**
@@ -159,23 +357,40 @@ async function searchExpedia(params) {
       // NOTE: We intentionally do NOT use setRequestInterception — it is detectable
       // by anti-bot systems and contributes to being flagged. Let all resources load naturally.
 
-      // Warm-up: visit homepage first to establish cookies/session
-      console.log('  → Warm-up: visiting Expedia homepage...');
-      try {
-        await page.goto('https://www.expediataap.com.br/', { waitUntil: 'domcontentloaded', timeout: 15000 });
-      } catch (navErr) {
-        // If homepage times out, log and continue — cookies may still have been set
-        console.log(`  → Warm-up navigation slow (${navErr.message}), continuing anyway...`);
+      // ── TAAP Login ──
+      // The TAAP portal requires authentication. Login before searching.
+      if (isTaapConfigured()) {
+        const loginOk = await loginToTaap(page);
+        if (!loginOk) {
+          console.log(`  → ⚠ TAAP login failed (attempt ${attempt}/${MAX_RETRIES})`);
+          await browser.close();
+          if (attempt < MAX_RETRIES) {
+            const backoff = 3000 + Math.random() * 5000;
+            console.log(`  → Retrying in ${Math.round(backoff / 1000)}s with new proxy port...`);
+            await delay(backoff);
+            continue;
+          }
+          console.log('  → All login attempts failed');
+          return [];
+        }
+      } else {
+        // No TAAP credentials — visit homepage and hope for the best
+        console.log('  → Warm-up: visiting TAAP homepage (no credentials configured)...');
+        try {
+          await page.goto(`${TAAP_BASE}/`, { waitUntil: 'domcontentloaded', timeout: 15000 });
+        } catch (navErr) {
+          console.log(`  → Warm-up navigation slow (${navErr.message}), continuing anyway...`);
+        }
+        console.log('  → ⚠ No TAAP credentials — set EXPEDIA_USER and EXPEDIA_PASS env vars');
       }
-      console.log('  → Warm-up: homepage loaded');
       await delay(800 + Math.random() * 700);
 
-      // Check if already blocked on homepage
-      console.log('  → Warm-up: checking CAPTCHA...');
+      // Check for CAPTCHA after login/warm-up
+      console.log('  → Checking CAPTCHA...');
       let homepageCaptcha = false;
       try { homepageCaptcha = await withTimeout(isCaptchaPage(page), 5000, 'CAPTCHA check'); } catch {}
       if (homepageCaptcha) {
-        console.log(`  → ⚠ CAPTCHA on homepage (attempt ${attempt}/${MAX_RETRIES})`);
+        console.log(`  → ⚠ CAPTCHA detected (attempt ${attempt}/${MAX_RETRIES})`);
         await browser.close();
         if (attempt < MAX_RETRIES) {
           const backoff = 3000 + Math.random() * 5000;
@@ -188,9 +403,9 @@ async function searchExpedia(params) {
       }
 
       // Quick mouse movement to look human (non-fatal if it fails)
-      console.log('  → Warm-up: simulating mouse...');
+      console.log('  → Simulating mouse...');
       try { await withTimeout(simulateMouseMovement(page), 3000, 'mouse movement'); } catch {}
-      console.log('  → Warm-up complete');
+      console.log('  → Ready to search');
 
       // Navigate to Expedia Hotel-Search
       const searchUrl = buildSearchUrl(destino, checkIn, checkOut, adultos, criancas, idadesCriancas);
@@ -210,6 +425,22 @@ async function searchExpedia(params) {
         console.log('  → Check PROXY_USER/PROXY_PASS env vars or Decodo account status (expired/no traffic)');
         console.log('  → Skipping all retry attempts — falling through to Amadeus');
         await browser.close();
+        return [];
+      }
+
+      // Check if redirected back to signin (login session expired or failed)
+      const currentUrl = page.url();
+      if (currentUrl.includes('/signin') || currentUrl.includes('/login')) {
+        console.log(`  → ⚠ Redirected to login page: ${currentUrl}`);
+        console.log('  → TAAP session not established — login may have failed');
+        await browser.close();
+        if (attempt < MAX_RETRIES) {
+          const backoff = 3000 + Math.random() * 5000;
+          console.log(`  → Retrying in ${Math.round(backoff / 1000)}s...`);
+          await delay(backoff);
+          continue;
+        }
+        console.log('  → All login attempts failed');
         return [];
       }
 
