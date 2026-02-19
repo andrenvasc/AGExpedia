@@ -208,6 +208,16 @@ async function searchExpedia(params) {
       const httpStatus = navResponse?.status() || 0;
       console.log(`  → DOM loaded: ${page.url()} (HTTP ${httpStatus})`);
 
+      // HTTP 407 = proxy authentication rejected — credentials wrong or account expired.
+      // No point retrying with different sessions; same credentials will fail every time.
+      if (httpStatus === 407) {
+        console.log('  → ⚠ HTTP 407: Proxy authentication failed');
+        console.log('  → Check PROXY_USER/PROXY_PASS env vars or Decodo account status (expired/no traffic)');
+        console.log('  → Skipping all retry attempts — falling through to Amadeus');
+        await browser.close();
+        return [];
+      }
+
       // Wait for SPA hydration — Expedia is a Next.js app, the initial HTML is
       // an empty shell. We must wait for JavaScript to render actual content.
       console.log('  → Waiting for SPA hydration...');

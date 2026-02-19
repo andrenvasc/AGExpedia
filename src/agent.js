@@ -62,22 +62,27 @@ async function processQuotation(data, onProgress) {
     }
 
     // Strategy 2: Amadeus API fallback (if Expedia returned nothing)
-    if (allResults.length === 0 && amadeusConfigured()) {
-      console.log(`[${quotationId}] Expedia returned 0, falling back to Amadeus API...`);
-      emit('progress', {
-        step: 'search',
-        status: 'active',
-        message: 'Buscando via Amadeus API...',
-        progress: 25,
-      });
+    if (allResults.length === 0) {
+      if (amadeusConfigured()) {
+        console.log(`[${quotationId}] Expedia returned 0, falling back to Amadeus API...`);
+        emit('progress', {
+          step: 'search',
+          status: 'active',
+          message: 'Buscando via Amadeus API...',
+          progress: 25,
+        });
 
-      allResults = await searchHotelsAmadeus({
-        destino: data.destino,
-        checkIn: data.checkIn,
-        checkOut: data.checkOut,
-        adultos: data.adultos,
-        criancas: data.criancas,
-      });
+        allResults = await searchHotelsAmadeus({
+          destino: data.destino,
+          checkIn: data.checkIn,
+          checkOut: data.checkOut,
+          adultos: data.adultos,
+          criancas: data.criancas,
+        });
+      } else {
+        console.log(`[${quotationId}] ⚠ Amadeus NOT configured — set AMADEUS_API_KEY and AMADEUS_API_SECRET in env vars for fallback`);
+        console.log(`[${quotationId}] Will use smart placeholders instead`);
+      }
     }
 
     // Remove duplicates by name
