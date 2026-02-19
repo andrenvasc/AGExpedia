@@ -144,8 +144,8 @@
         var actionsHtml = '';
         if (q.status === 'completed' && q.reportUrl) {
           actionsHtml =
-            '<a href="' + escapeHtml(q.reportUrl) + '" class="btn-action btn-view" target="_blank">Ver Cotação</a>' +
-            '<button class="btn-action btn-copy-link" onclick="copyQuotationLink(\'' + escapeHtml(q.reportUrl) + '\', this)">Copiar Link</button>';
+            '<a href="/processando/' + escapeHtml(q.id) + '" class="btn-action btn-view">Detalhes</a>' +
+            '<button class="btn-action btn-copy-link" onclick="copyQuotationLink(\'' + escapeHtml(q.reportUrl) + '\', this)">Copiar Link Cliente</button>';
         } else if (q.status === 'processing') {
           actionsHtml = '<a href="/processando/' + escapeHtml(q.id) + '" class="btn-action btn-view">Acompanhar</a>';
         }
