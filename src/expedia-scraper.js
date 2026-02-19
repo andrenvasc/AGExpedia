@@ -204,8 +204,9 @@ async function searchExpedia(params) {
       // Use domcontentloaded instead of networkidle2 — Expedia has persistent
       // connections (analytics, websockets, ads) that prevent networkidle2 from
       // resolving for 30-60s. The API interceptor captures data as it arrives.
-      await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      console.log('  → DOM loaded:', page.url());
+      const navResponse = await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      const httpStatus = navResponse?.status() || 0;
+      console.log(`  → DOM loaded: ${page.url()} (HTTP ${httpStatus})`);
 
       // Wait for SPA hydration — Expedia is a Next.js app, the initial HTML is
       // an empty shell. We must wait for JavaScript to render actual content.
@@ -220,19 +221,40 @@ async function searchExpedia(params) {
         console.log('  → Page did not render within 15s, continuing...');
       }
 
-      // Check for CAPTCHA on rendered search page
-      let searchCaptcha = false;
-      try { searchCaptcha = await withTimeout(isCaptchaPage(page), 5000, 'search CAPTCHA check'); } catch {}
-      if (searchCaptcha) {
-        console.log(`  → ⚠ CAPTCHA on search page (attempt ${attempt}/${MAX_RETRIES})`);
+      // Check for blank page (soft block) or CAPTCHA — both mean we're blocked
+      const postTitle = await page.title().catch(() => '');
+      const postBodyLen = await page.evaluate(() => (document.body?.innerText || '').trim().length).catch(() => 0);
+
+      let isBlocked = false;
+      let blockReason = '';
+
+      // Soft block: Expedia serves a completely blank page instead of a CAPTCHA
+      if (!postTitle && postBodyLen < 50) {
+        isBlocked = true;
+        blockReason = 'blank page (soft block)';
+        const rawHtml = await page.content().catch(() => '');
+        console.log(`  → ⚠ Blank page detected — HTML length: ${rawHtml.length}`);
+        console.log(`  → Raw HTML preview: ${rawHtml.substring(0, 300)}`);
+        console.log(`  → Final URL: ${page.url()}, HTTP ${httpStatus}`);
+      }
+
+      // Hard block: CAPTCHA page with challenge text
+      if (!isBlocked) {
+        try { isBlocked = await withTimeout(isCaptchaPage(page), 5000, 'search CAPTCHA check'); } catch {}
+        if (isBlocked) blockReason = 'CAPTCHA';
+      }
+
+      if (isBlocked) {
+        console.log(`  → ⚠ Blocked (${blockReason}) on attempt ${attempt}/${MAX_RETRIES}`);
         await browser.close();
+        browser = null;
         if (attempt < MAX_RETRIES) {
           const backoff = 3000 + Math.random() * 5000;
           console.log(`  → Retrying in ${Math.round(backoff / 1000)}s with new proxy session...`);
           await delay(backoff);
           continue;
         }
-        console.log('  → All attempts blocked by CAPTCHA');
+        console.log(`  → All ${MAX_RETRIES} attempts blocked`);
         return [];
       }
 
@@ -285,12 +307,15 @@ async function searchExpedia(params) {
 
       // Debug info when no results
       if (results.length === 0) {
-        const title = await page.title();
+        const title = await page.title().catch(() => '');
         const bodyPreview = await page.evaluate(() =>
           (document.body?.innerText || '').substring(0, 500)
-        );
-        console.log('  → DEBUG no results. Title:', title);
-        console.log('  → Body:', bodyPreview);
+        ).catch(() => '');
+        const rawHtmlLen = await page.evaluate(() => document.documentElement.outerHTML.length).catch(() => 0);
+        const finalUrl = page.url();
+        console.log(`  → DEBUG no results. Title: "${title}"`);
+        console.log(`  → URL: ${finalUrl}, HTML size: ${rawHtmlLen}, JSON responses seen: ${jsonResponseCount}`);
+        console.log(`  → Body preview: "${bodyPreview.substring(0, 300)}"`);
       }
 
       console.log(`  → ${results.length} raw results`);
