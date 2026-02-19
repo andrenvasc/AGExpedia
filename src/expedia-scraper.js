@@ -179,10 +179,9 @@ async function searchExpedia(params) {
         return [];
       }
 
-      // Quick mouse movement to look human
+      // Quick mouse movement to look human (non-fatal if it fails)
       console.log('  → Warm-up: simulating mouse...');
-      await withTimeout(simulateMouseMovement(page), 5000, 'mouse movement');
-      await delay(500 + Math.random() * 500);
+      try { await withTimeout(simulateMouseMovement(page), 3000, 'mouse movement'); } catch {}
       console.log('  → Warm-up complete');
 
       // Navigate to Expedia Hotel-Search
@@ -220,10 +219,9 @@ async function searchExpedia(params) {
       }
       console.log(`  → Data wait: ${Date.now() - waitStart}ms, API results so far: ${apiResults.length}`);
 
-      // Quick human-like interaction
-      await withTimeout(simulateMouseMovement(page), 3000, 'search mouse movement');
-      await withTimeout(simulateHumanScroll(page), 5000, 'search scroll');
-      await delay(500 + Math.random() * 500);
+      // Quick human-like interaction (non-fatal if it fails)
+      try { await withTimeout(simulateMouseMovement(page), 3000, 'search mouse movement'); } catch {}
+      try { await withTimeout(simulateHumanScroll(page), 5000, 'search scroll'); } catch {}
 
       // Strategy 1: API/GraphQL intercepted results
       let results = deduplicateHotels(apiResults);
