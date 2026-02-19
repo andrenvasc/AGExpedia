@@ -165,7 +165,8 @@ async function searchExpedia(params) {
 
       // Check if already blocked on homepage
       console.log('  → Warm-up: checking CAPTCHA...');
-      const homepageCaptcha = await withTimeout(isCaptchaPage(page), 5000, 'CAPTCHA check');
+      let homepageCaptcha = false;
+      try { homepageCaptcha = await withTimeout(isCaptchaPage(page), 5000, 'CAPTCHA check'); } catch {}
       if (homepageCaptcha) {
         console.log(`  → ⚠ CAPTCHA on homepage (attempt ${attempt}/${MAX_RETRIES})`);
         await browser.close();
@@ -195,7 +196,9 @@ async function searchExpedia(params) {
       console.log('  → DOM loaded:', page.url());
 
       // Check for CAPTCHA on search page
-      if (await withTimeout(isCaptchaPage(page), 5000, 'search CAPTCHA check')) {
+      let searchCaptcha = false;
+      try { searchCaptcha = await withTimeout(isCaptchaPage(page), 5000, 'search CAPTCHA check'); } catch {}
+      if (searchCaptcha) {
         console.log(`  → ⚠ CAPTCHA on search page (attempt ${attempt}/${MAX_RETRIES})`);
         await browser.close();
         if (attempt < MAX_RETRIES) {
@@ -229,19 +232,19 @@ async function searchExpedia(params) {
 
       // Strategy 2: __NEXT_DATA__ embedded JSON
       if (results.length === 0) {
-        results = await extractFromNextData(page);
+        try { results = await withTimeout(extractFromNextData(page), 8000, 'NEXT_DATA extraction'); } catch {}
         console.log(`  → Strategy 2 (__NEXT_DATA__): ${results.length} hotels`);
       }
 
       // Strategy 3: DOM extraction with multiple selectors
       if (results.length === 0) {
-        results = await extractFromDOM(page);
+        try { results = await withTimeout(extractFromDOM(page), 8000, 'DOM extraction'); } catch {}
         console.log(`  → Strategy 3 (DOM): ${results.length} hotels`);
       }
 
       // Strategy 4: Broad page text parsing
       if (results.length === 0) {
-        results = await extractFromPageContent(page);
+        try { results = await withTimeout(extractFromPageContent(page), 8000, 'page text extraction'); } catch {}
         console.log(`  → Strategy 4 (page text): ${results.length} hotels`);
       }
 
