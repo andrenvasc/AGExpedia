@@ -131,6 +131,7 @@ async function searchExpedia(params) {
 
       // Intercept API/GraphQL responses to capture hotel data directly
       const apiResults = [];
+      let jsonResponseCount = 0;
       page.on('response', async (response) => {
         try {
           const url = response.url();
@@ -138,12 +139,23 @@ async function searchExpedia(params) {
           const ct = response.headers()['content-type'] || '';
           if (!ct.includes('json')) return;
 
-          if (url.includes('graphql') || url.includes('api/') || url.includes('search') || url.includes('property')) {
+          // Log first few JSON responses for debugging
+          jsonResponseCount++;
+          if (jsonResponseCount <= 5) {
+            console.log(`  → [JSON #${jsonResponseCount}] ${url.substring(0, 120)}`);
+          }
+
+          // Broad case-insensitive matching — parseApiResponse filters false positives
+          const lowerUrl = url.toLowerCase();
+          if (lowerUrl.includes('graphql') || lowerUrl.includes('/api/') ||
+              lowerUrl.includes('search') || lowerUrl.includes('property') ||
+              lowerUrl.includes('listing') || lowerUrl.includes('lodging') ||
+              lowerUrl.includes('hotel') || lowerUrl.includes('offer')) {
             const json = await response.json();
             const hotels = parseApiResponse(json);
             if (hotels.length > 0) {
               apiResults.push(...hotels);
-              console.log(`  → API intercepted: ${hotels.length} hotels`);
+              console.log(`  → API intercepted: ${hotels.length} hotels from ${url.substring(0, 100)}`);
             }
           }
         } catch {}
@@ -195,7 +207,20 @@ async function searchExpedia(params) {
       await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
       console.log('  → DOM loaded:', page.url());
 
-      // Check for CAPTCHA on search page
+      // Wait for SPA hydration — Expedia is a Next.js app, the initial HTML is
+      // an empty shell. We must wait for JavaScript to render actual content.
+      console.log('  → Waiting for SPA hydration...');
+      try {
+        await page.waitForFunction(
+          () => (document.title || '').length > 0 || (document.body?.innerText || '').length > 100,
+          { timeout: 15000, polling: 500 }
+        );
+        console.log('  → Page rendered, title:', await page.title().catch(() => '(unknown)'));
+      } catch {
+        console.log('  → Page did not render within 15s, continuing...');
+      }
+
+      // Check for CAPTCHA on rendered search page
       let searchCaptcha = false;
       try { searchCaptcha = await withTimeout(isCaptchaPage(page), 5000, 'search CAPTCHA check'); } catch {}
       if (searchCaptcha) {
@@ -211,16 +236,26 @@ async function searchExpedia(params) {
         return [];
       }
 
-      // Wait for results — poll API interceptor instead of waiting for full networkidle.
-      // This is much faster: we stop as soon as we have data or after a reasonable timeout.
+      // Wait for hotel results — poll both API interceptor and DOM for hotel cards.
       console.log('  → Waiting for search results...');
       const waitStart = Date.now();
-      const MAX_WAIT = 15000; // 15s max wait for results
+      const MAX_WAIT = 20000; // 20s max wait for results
       const POLL_INTERVAL = 1000;
       while (apiResults.length === 0 && (Date.now() - waitStart) < MAX_WAIT) {
+        // Also check if hotel cards appeared in DOM (fallback if API interceptor misses)
+        const hasCards = await page.evaluate(() =>
+          document.querySelectorAll(
+            '[data-stid="property-listing"], [data-testid="property-card"], .uitk-card-content-section'
+          ).length > 0
+        ).catch(() => false);
+        if (hasCards) {
+          console.log('  → Hotel cards detected in DOM, waiting 2s for more to load...');
+          await delay(2000); // Let remaining cards load
+          break;
+        }
         await delay(POLL_INTERVAL);
       }
-      console.log(`  → Data wait: ${Date.now() - waitStart}ms, API results so far: ${apiResults.length}`);
+      console.log(`  → Data wait: ${Date.now() - waitStart}ms, API results: ${apiResults.length}`);
 
       // Quick human-like interaction (non-fatal if it fails)
       try { await withTimeout(simulateMouseMovement(page), 3000, 'search mouse movement'); } catch {}
