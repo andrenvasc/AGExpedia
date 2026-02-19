@@ -769,7 +769,11 @@ function buildDetailUrl(detailUrl, hotelId, checkIn, checkOut, adultos) {
 }
 
 /**
- * Scrape an individual hotel detail page for rooms, amenities, photos, description.
+ * Scrape an individual hotel detail page:
+ *   1. Navigate to hotel detail page
+ *   2. Extract rooms, amenities, photos, description
+ *   3. Click "Reserve" on the first room to enter booking flow
+ *   4. On the checkout/quotation page, extract the total price
  * Non-fatal — returns original hotel data if anything fails.
  */
 async function scrapeHotelDetail(page, hotel, checkIn, checkOut, adultos) {
@@ -781,7 +785,11 @@ async function scrapeHotelDetail(page, hotel, checkIn, checkOut, adultos) {
 
   try {
     console.log(`    → Opening: ${url.substring(0, 100)}...`);
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+    try {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 25000 });
+    } catch (navErr) {
+      console.log(`    → Navigation slow (${navErr.message}), continuing...`);
+    }
 
     // Wait for SPA to render content
     try {
@@ -804,13 +812,25 @@ async function scrapeHotelDetail(page, hotel, checkIn, checkOut, adultos) {
       await page.waitForFunction(
         () => {
           const text = (document.body?.innerText || '').toLowerCase();
-          return text.includes('r$') && (text.includes('quarto') || text.includes('room') || text.includes('suite') || text.includes('cama'));
+          return (text.includes('r$') || text.includes('reserv')) &&
+                 (text.includes('quarto') || text.includes('room') || text.includes('suite') || text.includes('cama'));
         },
-        { timeout: 10000, polling: 500 }
+        { timeout: 12000, polling: 500 }
       );
     } catch {}
 
-    // Extract rooms
+    // Scroll down to load room offers (they may be below the fold)
+    try {
+      await page.evaluate(async () => {
+        for (let i = 0; i < 4; i++) {
+          window.scrollBy(0, 400);
+          await new Promise(r => setTimeout(r, 300));
+        }
+      });
+    } catch {}
+    await delay(1000);
+
+    // ── Extract rooms ──
     let rooms = [];
     try {
       rooms = await withTimeout(page.evaluate(() => {
@@ -889,13 +909,206 @@ async function scrapeHotelDetail(page, hotel, checkIn, checkOut, adultos) {
         return results;
       }), 8000, 'room extraction');
     } catch {}
+    console.log(`    → ${rooms.length} rooms found on detail page`);
 
-    // Extract amenities
+    // ── Click "Reserve" to enter booking/quotation flow ──
+    // This takes us to the checkout page where the total price is shown.
+    let totalPrice = '';
+    let totalPriceNum = 0;
+    let quotationRoomType = '';
+
+    try {
+      // Find and click the first reserve/select button
+      console.log('    → Clicking reserve button to get quotation...');
+      const reserveClicked = await page.evaluate(() => {
+        // Strategy 1: Buttons with reserve/select text
+        const buttonSelectors = [
+          'button[data-stid="submit-hotel-reserve"]',
+          'button[data-stid="select-button"]',
+          'a[data-stid="select-button"]',
+          'button[data-stid="book-button"]',
+          'button[data-testid="select-button"]',
+          'button[data-testid="submit-hotel-reserve"]',
+        ];
+
+        for (const sel of buttonSelectors) {
+          const btn = document.querySelector(sel);
+          if (btn) {
+            btn.scrollIntoView({ block: 'center' });
+            btn.click();
+            return { clicked: sel };
+          }
+        }
+
+        // Strategy 2: Find button/link by text content
+        const allClickables = document.querySelectorAll('button, a[href]');
+        for (const el of allClickables) {
+          const text = (el.textContent || '').toLowerCase().trim();
+          if (text.includes('reservar') || text.includes('reserve') ||
+              text.includes('selecionar') || text.includes('select') ||
+              text === 'escolher' || text === 'book') {
+            // Skip if it's a filter or nav element
+            if (el.closest('nav, header, [role="navigation"]')) continue;
+            el.scrollIntoView({ block: 'center' });
+            el.click();
+            return { clicked: 'text-match: ' + text.substring(0, 30) };
+          }
+        }
+
+        return null;
+      });
+
+      if (reserveClicked) {
+        console.log(`    → Reserve button clicked (${reserveClicked.clicked})`);
+
+        // Wait for navigation to checkout/quotation page
+        try {
+          await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 20000 });
+        } catch {
+          // SPA-style navigation — wait for content change
+          await delay(5000);
+        }
+
+        // Wait for checkout page to render with price
+        console.log('    → Waiting for quotation page...');
+        try {
+          await page.waitForFunction(
+            () => {
+              const text = (document.body?.innerText || '').toLowerCase();
+              return text.includes('r$') &&
+                     (text.includes('total') || text.includes('pagamento') ||
+                      text.includes('checkout') || text.includes('resumo') ||
+                      text.includes('cotação') || text.includes('detalhes do preço'));
+            },
+            { timeout: 15000, polling: 500 }
+          );
+        } catch {
+          console.log('    → Quotation page may not have loaded fully');
+        }
+
+        await delay(1500);
+
+        // Extract total price from checkout/quotation page
+        const quotationData = await page.evaluate(() => {
+          const text = document.body?.innerText || '';
+          const url = window.location.href;
+
+          // Find the total price — look for "Total" or "Preço total" near R$
+          let totalPrice = '';
+          let totalPriceNum = 0;
+          let roomType = '';
+
+          // Strategy 1: Look for structured price elements
+          const priceSelectors = [
+            '[data-stid="price-summary-total"] [class*="price"]',
+            '[data-stid="price-summary"] [class*="total"]',
+            '[data-testid="price-summary-total"]',
+            '[data-stid="total-price"]',
+            '[class*="total-price"]',
+            '[class*="price-total"]',
+            '[class*="trip-total"]',
+            '.price-summary .total',
+          ];
+
+          for (const sel of priceSelectors) {
+            const el = document.querySelector(sel);
+            if (el?.textContent) {
+              const match = el.textContent.match(/R\$\s*([\d.,]+)/);
+              if (match) {
+                totalPrice = `R$ ${match[1]}`;
+                totalPriceNum = parseFloat(match[1].replace(/\./g, '').replace(',', '.'));
+                break;
+              }
+            }
+          }
+
+          // Strategy 2: Find "Total" label near price in text
+          if (!totalPrice) {
+            const lines = text.split('\n').map(l => l.trim());
+            for (let i = 0; i < lines.length; i++) {
+              const line = lines[i].toLowerCase();
+              if (line.includes('total') && !line.includes('subtotal')) {
+                // Check this line and next few lines for price
+                const nearby = lines.slice(i, i + 3).join(' ');
+                const match = nearby.match(/R\$\s*([\d.,]+)/);
+                if (match) {
+                  totalPrice = `R$ ${match[1]}`;
+                  totalPriceNum = parseFloat(match[1].replace(/\./g, '').replace(',', '.'));
+                  break;
+                }
+              }
+            }
+          }
+
+          // Strategy 3: Find the largest R$ value on the page (likely the total)
+          if (!totalPrice) {
+            const allPrices = [];
+            const priceRegex = /R\$\s*([\d.,]+)/g;
+            let m;
+            while ((m = priceRegex.exec(text)) !== null) {
+              const val = parseFloat(m[1].replace(/\./g, '').replace(',', '.'));
+              if (val > 0) allPrices.push({ display: `R$ ${m[1]}`, value: val });
+            }
+            if (allPrices.length > 0) {
+              allPrices.sort((a, b) => b.value - a.value);
+              totalPrice = allPrices[0].display;
+              totalPriceNum = allPrices[0].value;
+            }
+          }
+
+          // Extract room type from checkout
+          const roomSelectors = [
+            '[data-stid="room-type"]',
+            '[data-stid="room-name"]',
+            '[class*="room-type"]',
+            '[class*="room-name"]',
+            'h2', 'h3',
+          ];
+          for (const sel of roomSelectors) {
+            const els = document.querySelectorAll(sel);
+            for (const el of els) {
+              const t = el.textContent?.trim() || '';
+              if (t.length > 3 && t.length < 80 &&
+                  (t.toLowerCase().includes('quarto') || t.toLowerCase().includes('room') ||
+                   t.toLowerCase().includes('suite') || t.toLowerCase().includes('cama') ||
+                   t.toLowerCase().includes('standard') || t.toLowerCase().includes('deluxe'))) {
+                roomType = t;
+                break;
+              }
+            }
+            if (roomType) break;
+          }
+
+          return { totalPrice, totalPriceNum, roomType, url, pageTitle: document.title };
+        });
+
+        console.log(`    → Quotation: ${quotationData.totalPrice || 'no price found'} (page: ${quotationData.url.substring(0, 80)})`);
+
+        totalPrice = quotationData.totalPrice;
+        totalPriceNum = quotationData.totalPriceNum;
+        quotationRoomType = quotationData.roomType;
+
+        // Navigate back to detail page for next hotel
+        try {
+          await page.goBack({ waitUntil: 'domcontentloaded', timeout: 15000 });
+        } catch {
+          // If goBack fails, just continue — next hotel will navigate away
+        }
+        await delay(500);
+
+      } else {
+        console.log('    → No reserve button found, extracting prices from detail page');
+      }
+    } catch (bookingErr) {
+      console.log(`    → Booking flow error: ${bookingErr.message}`);
+    }
+
+    // ── Extract amenities ──
+    // Go back to detail page if needed for amenities
     let amenities = [];
     try {
       amenities = await withTimeout(page.evaluate(() => {
         const items = [];
-
         const selectors = [
           '[data-stid="section-amenities"] li',
           '[data-stid="amenity-group"] li',
@@ -903,19 +1116,16 @@ async function scrapeHotelDetail(page, hotel, checkIn, checkOut, adultos) {
           '[data-stid="amenity-item"]',
           '.amenity-item',
         ];
-
         let elements = [];
         for (const sel of selectors) {
           elements = document.querySelectorAll(sel);
           if (elements.length > 0) break;
         }
-
         elements.forEach(el => {
           const t = el.textContent?.trim();
           if (t && t.length < 60 && !items.includes(t)) items.push(t);
         });
-
-        // Fallback: detect common amenity keywords in page text
+        // Fallback: detect common amenity keywords
         if (items.length === 0) {
           const body = (document.body?.innerText || '').toLowerCase();
           const keywords = [
@@ -927,12 +1137,11 @@ async function scrapeHotelDetail(page, hotel, checkIn, checkOut, adultos) {
             if (body.includes(kw.toLowerCase())) items.push(kw);
           }
         }
-
         return items.slice(0, 15);
       }), 5000, 'amenity extraction');
     } catch {}
 
-    // Extract description if missing
+    // ── Extract description ──
     let description = hotel.description || '';
     if (!description) {
       try {
@@ -952,7 +1161,7 @@ async function scrapeHotelDetail(page, hotel, checkIn, checkOut, adultos) {
       } catch {}
     }
 
-    // Extract more photos
+    // ── Extract photos ──
     let photos = hotel.photos || [];
     try {
       const morePhotos = await page.evaluate(() => {
@@ -965,7 +1174,12 @@ async function scrapeHotelDetail(page, hotel, checkIn, checkOut, adultos) {
       if (morePhotos.length > photos.length) photos = morePhotos;
     } catch {}
 
-    console.log(`    → ${rooms.length} rooms, ${amenities.length} amenities`);
+    console.log(`    → ${rooms.length} rooms, ${amenities.length} amenities, total: ${totalPrice || 'N/A'}`);
+
+    // Determine the best price info
+    const bestRoom = rooms.length > 0 ? rooms[0] : null;
+    const finalPricePerNight = bestRoom?.price || hotel.pricePerNight || 0;
+    const finalRoomType = quotationRoomType || bestRoom?.name || hotel.roomType || 'Standard';
 
     return {
       ...hotel,
@@ -973,11 +1187,11 @@ async function scrapeHotelDetail(page, hotel, checkIn, checkOut, adultos) {
       amenities: amenities.length > 0 ? amenities : hotel.amenities || [],
       description: description || hotel.description || '',
       photos,
-      // Use cheapest room as primary price/type if available
-      ...(rooms.length > 0 && rooms[0].price ? {
-        pricePerNight: rooms[0].price,
-        roomType: rooms[0].name,
-      } : {}),
+      roomType: finalRoomType,
+      pricePerNight: finalPricePerNight,
+      // Use total from quotation page if we got it, otherwise calculate
+      priceTotal: totalPrice || hotel.priceTotal || '',
+      quotationPrice: totalPriceNum || 0,
     };
   } catch (err) {
     console.log(`    → Detail failed: ${err.message}`);
