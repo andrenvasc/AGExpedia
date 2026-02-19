@@ -37,14 +37,38 @@ async function processQuotation(data, onProgress) {
     const orcamentos = data.orcamentos || [data.orcamento || 'sem_limite'];
     let allResults = [];
 
-    // Strategy 1: Amadeus API (reliable, requires API keys)
-    if (amadeusConfigured()) {
-      console.log(`[${quotationId}] Using Amadeus API...`);
+    // Strategy 1: Expedia scraper (primary - use with residential proxy for best results)
+    console.log(`[${quotationId}] Trying Expedia scraper...`);
+    emit('progress', {
+      step: 'search',
+      status: 'active',
+      message: 'Buscando na Expedia...',
+      progress: 15,
+    });
+
+    for (const orcamento of orcamentos) {
+      const results = await searchExpedia({
+        destino: data.destino,
+        checkIn: data.checkIn,
+        checkOut: data.checkOut,
+        adultos: data.adultos,
+        criancas: data.criancas,
+        idadesCriancas: data.idadesCriancas,
+        estilos: data.estilos,
+        prioridades: data.prioridades,
+        orcamento: orcamento,
+      });
+      allResults = allResults.concat(results);
+    }
+
+    // Strategy 2: Amadeus API fallback (if Expedia returned nothing)
+    if (allResults.length === 0 && amadeusConfigured()) {
+      console.log(`[${quotationId}] Expedia returned 0, falling back to Amadeus API...`);
       emit('progress', {
         step: 'search',
         status: 'active',
         message: 'Buscando via Amadeus API...',
-        progress: 15,
+        progress: 25,
       });
 
       allResults = await searchHotelsAmadeus({
@@ -54,32 +78,6 @@ async function processQuotation(data, onProgress) {
         adultos: data.adultos,
         criancas: data.criancas,
       });
-    }
-
-    // Strategy 2: Expedia scraper (unreliable, may be blocked by bot detection)
-    if (allResults.length === 0) {
-      console.log(`[${quotationId}] Trying Expedia scraper...`);
-      emit('progress', {
-        step: 'search',
-        status: 'active',
-        message: 'Buscando na Expedia...',
-        progress: 20,
-      });
-
-      for (const orcamento of orcamentos) {
-        const results = await searchExpedia({
-          destino: data.destino,
-          checkIn: data.checkIn,
-          checkOut: data.checkOut,
-          adultos: data.adultos,
-          criancas: data.criancas,
-          idadesCriancas: data.idadesCriancas,
-          estilos: data.estilos,
-          prioridades: data.prioridades,
-          orcamento: orcamento,
-        });
-        allResults = allResults.concat(results);
-      }
     }
 
     // Remove duplicates by name
