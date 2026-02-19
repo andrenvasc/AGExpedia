@@ -14,26 +14,48 @@ function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+/**
+ * Check if a residential proxy is configured
+ */
+function isProxyConfigured() {
+  return !!(process.env.PROXY_HOST && process.env.PROXY_USER && process.env.PROXY_PASS);
+}
+
 async function searchExpedia(params) {
   const { destino, checkIn, checkOut, adultos, criancas, idadesCriancas, estilos, prioridades, orcamento } = params;
   let browser;
 
   try {
-    console.log('  → Launching browser...');
+    const useProxy = isProxyConfigured();
+    const proxyHost = process.env.PROXY_HOST || 'gate.decodo.com';
+    const proxyPort = process.env.PROXY_PORT || '7000';
+    const proxyUser = process.env.PROXY_USER;
+    const proxyPass = process.env.PROXY_PASS;
+
+    console.log(`  → Launching browser (proxy: ${useProxy ? proxyHost + ':' + proxyPort : 'none'})...`);
     chromium.setHeadlessMode = true;
     chromium.setGraphicsMode = false;
 
+    const launchArgs = [
+      ...chromium.args,
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--single-process',
+      '--no-zygote',
+      '--disable-blink-features=AutomationControlled',
+      '--disable-features=IsolateOrigins,site-per-process',
+      '--lang=pt-BR,pt,en-US,en',
+    ];
+
+    // Add proxy if configured
+    if (useProxy) {
+      launchArgs.push(`--proxy-server=http://${proxyHost}:${proxyPort}`);
+    }
+
     browser = await puppeteer.launch({
-      args: [
-        ...chromium.args,
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--single-process',
-        '--no-zygote',
-        '--disable-blink-features=AutomationControlled',
-      ],
+      args: launchArgs,
       defaultViewport: { width: 1366, height: 768 },
       executablePath: await chromium.executablePath(),
       headless: 'new',
@@ -43,14 +65,14 @@ async function searchExpedia(params) {
     console.log('  → Browser launched OK');
     const page = await browser.newPage();
 
-    // Stealth: hide webdriver flag
-    await page.evaluateOnNewDocument(() => {
-      Object.defineProperty(navigator, 'webdriver', { get: () => false });
-    });
+    // Authenticate proxy if configured
+    if (useProxy && proxyUser && proxyPass) {
+      await page.authenticate({ username: proxyUser, password: proxyPass });
+      console.log('  → Proxy authenticated');
+    }
 
-    await page.setUserAgent(
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
-    );
+    // --- Stealth measures ---
+    await applyStealthMeasures(page);
 
     // Intercept API/GraphQL responses to capture hotel data directly
     const apiResults = [];
@@ -72,7 +94,7 @@ async function searchExpedia(params) {
       } catch {}
     });
 
-    // Block only heavy resources (keep CSS for bot-detection evasion)
+    // Block heavy resources but keep CSS/JS for bot detection evasion
     await page.setRequestInterception(true);
     page.on('request', req => {
       const type = req.resourceType();
@@ -83,13 +105,19 @@ async function searchExpedia(params) {
       }
     });
 
-    // Navigate to Expedia public Hotel-Search
+    // Navigate to Expedia Hotel-Search
     const searchUrl = buildSearchUrl(destino, checkIn, checkOut, adultos, criancas, idadesCriancas);
     console.log('  → Navigating to:', searchUrl);
 
     await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 60000 });
     console.log('  → Page loaded:', page.url());
-    await delay(5000);
+
+    // Human-like delay
+    await delay(3000 + Math.random() * 3000);
+
+    // Simulate human interaction: scroll down slowly
+    await simulateHumanScroll(page);
+    await delay(2000 + Math.random() * 2000);
 
     // Strategy 1: API/GraphQL intercepted results
     let results = deduplicateHotels(apiResults);
@@ -117,10 +145,27 @@ async function searchExpedia(params) {
     if (results.length === 0) {
       const title = await page.title();
       const bodyPreview = await page.evaluate(() =>
-        (document.body?.innerText || '').substring(0, 300)
+        (document.body?.innerText || '').substring(0, 500)
       );
       console.log('  → DEBUG no results. Title:', title);
       console.log('  → Body:', bodyPreview);
+
+      // Check for bot detection indicators
+      const isBotBlocked = await page.evaluate(() => {
+        const text = document.body?.innerText?.toLowerCase() || '';
+        return text.includes('captcha') ||
+               text.includes('robot') ||
+               text.includes('access denied') ||
+               text.includes('blocked') ||
+               text.includes('please verify') ||
+               text.includes('suspicious');
+      });
+      if (isBotBlocked) {
+        console.log('  → ⚠ BOT DETECTION: Page appears to be blocked by anti-bot system');
+        if (!useProxy) {
+          console.log('  → TIP: Configure a residential proxy (PROXY_HOST, PROXY_USER, PROXY_PASS) to bypass bot detection');
+        }
+      }
     }
 
     console.log(`  → ${results.length} raw results`);
@@ -134,6 +179,114 @@ async function searchExpedia(params) {
   } finally {
     if (browser) { try { await browser.close(); } catch {} }
   }
+}
+
+/**
+ * Apply comprehensive stealth measures to avoid bot detection
+ */
+async function applyStealthMeasures(page) {
+  // Realistic User-Agent (Chrome 122 on Windows 10)
+  await page.setUserAgent(
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+  );
+
+  // Set realistic headers
+  await page.setExtraHTTPHeaders({
+    'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+    'Sec-CH-UA': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+    'Sec-CH-UA-Mobile': '?0',
+    'Sec-CH-UA-Platform': '"Windows"',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none',
+    'Sec-Fetch-User': '?1',
+    'Upgrade-Insecure-Requests': '1',
+  });
+
+  // Override navigator properties to hide automation
+  await page.evaluateOnNewDocument(() => {
+    // Hide webdriver flag
+    Object.defineProperty(navigator, 'webdriver', { get: () => false });
+
+    // Realistic plugins array
+    Object.defineProperty(navigator, 'plugins', {
+      get: () => {
+        const plugins = [
+          { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer', description: 'Portable Document Format' },
+          { name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai', description: '' },
+          { name: 'Native Client', filename: 'internal-nacl-plugin', description: '' },
+        ];
+        plugins.length = 3;
+        return plugins;
+      },
+    });
+
+    // Realistic languages
+    Object.defineProperty(navigator, 'languages', {
+      get: () => ['pt-BR', 'pt', 'en-US', 'en'],
+    });
+
+    // Chrome runtime (exists in real Chrome, missing in headless)
+    window.chrome = {
+      runtime: { id: undefined },
+      loadTimes: function() {},
+      csi: function() {},
+    };
+
+    // Hide "HeadlessChrome" from user agent
+    const originalQuery = window.navigator.permissions.query;
+    window.navigator.permissions.query = (parameters) =>
+      parameters.name === 'notifications'
+        ? Promise.resolve({ state: Notification.permission })
+        : originalQuery(parameters);
+
+    // Canvas fingerprint (add subtle noise)
+    const origGetContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function(type, ...args) {
+      const ctx = origGetContext.call(this, type, ...args);
+      if (type === '2d' && ctx) {
+        const origFillText = ctx.fillText;
+        ctx.fillText = function(...textArgs) {
+          // Add invisible noise
+          textArgs[0] = textArgs[0]; // no-op to create unique stack
+          return origFillText.apply(this, textArgs);
+        };
+      }
+      return ctx;
+    };
+
+    // WebGL vendor/renderer (match real Chrome)
+    const getParameter = WebGLRenderingContext.prototype.getParameter;
+    WebGLRenderingContext.prototype.getParameter = function(parameter) {
+      if (parameter === 37445) return 'Google Inc. (Intel)';
+      if (parameter === 37446) return 'ANGLE (Intel, Intel(R) UHD Graphics 630, OpenGL 4.5)';
+      return getParameter.call(this, parameter);
+    };
+  });
+}
+
+/**
+ * Simulate human-like scrolling behavior
+ */
+async function simulateHumanScroll(page) {
+  try {
+    await page.evaluate(async () => {
+      const scrollHeight = document.body.scrollHeight;
+      const viewportHeight = window.innerHeight;
+      let scrolled = 0;
+
+      while (scrolled < Math.min(scrollHeight * 0.6, 3000)) {
+        const scrollStep = 100 + Math.random() * 200;
+        window.scrollBy(0, scrollStep);
+        scrolled += scrollStep;
+        await new Promise(r => setTimeout(r, 150 + Math.random() * 300));
+      }
+
+      // Scroll back up a bit (human behavior)
+      window.scrollBy(0, -(200 + Math.random() * 300));
+    });
+  } catch {}
 }
 
 /**
@@ -418,4 +571,4 @@ function filterResults(hotels, { estilos, prioridades, orcamento }) {
   return f.slice(0, 10);
 }
 
-module.exports = { searchExpedia };
+module.exports = { searchExpedia, isProxyConfigured };
