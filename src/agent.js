@@ -1,5 +1,5 @@
 const { searchHotelsAmadeus, isConfigured: amadeusConfigured } = require('./amadeus-search');
-const { searchExpedia } = require('./expedia-scraper');
+const { searchMysnow } = require('./mysnow-scraper');
 const { fetchReviews } = require('./review-fetcher');
 const { generateReport } = require('./report-generator');
 
@@ -37,17 +37,17 @@ async function processQuotation(data, onProgress) {
     const orcamentos = data.orcamentos || [data.orcamento || 'sem_limite'];
     let allResults = [];
 
-    // Strategy 1: Expedia scraper (primary - use with residential proxy for best results)
-    console.log(`[${quotationId}] Trying Expedia scraper...`);
+    // Strategy 1: Mysnow scraper (primary - use with residential proxy for best results)
+    console.log(`[${quotationId}] Trying Mysnow scraper...`);
     emit('progress', {
       step: 'search',
       status: 'active',
-      message: 'Buscando na Expedia...',
+      message: 'Buscando na Mysnow...',
       progress: 15,
     });
 
     for (const orcamento of orcamentos) {
-      const results = await searchExpedia({
+      const results = await searchMysnow({
         destino: data.destino,
         checkIn: data.checkIn,
         checkOut: data.checkOut,
@@ -61,10 +61,10 @@ async function processQuotation(data, onProgress) {
       allResults = allResults.concat(results);
     }
 
-    // Strategy 2: Amadeus API fallback (if Expedia returned nothing)
+    // Strategy 2: Amadeus API fallback (if Mysnow returned nothing)
     if (allResults.length === 0) {
       if (amadeusConfigured()) {
-        console.log(`[${quotationId}] Expedia returned 0, falling back to Amadeus API...`);
+        console.log(`[${quotationId}] Mysnow returned 0, falling back to Amadeus API...`);
         emit('progress', {
           step: 'search',
           status: 'active',

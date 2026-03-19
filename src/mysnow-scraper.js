@@ -45,19 +45,19 @@ function isProxyConfigured() {
  * Check if TAAP credentials are configured
  */
 function isTaapConfigured() {
-  return !!(process.env.EXPEDIA_USER && process.env.EXPEDIA_PASS);
+  return !!(process.env.MYSNOW_USER && process.env.MYSNOW_PASS);
 }
 
 /**
- * Login to Expedia TAAP portal.
+ * Login to Mysnow TAAP portal.
  * Returns true if login succeeded, false otherwise.
  */
 async function loginToTaap(page) {
-  const email = process.env.EXPEDIA_USER;
-  const password = process.env.EXPEDIA_PASS;
+  const email = process.env.MYSNOW_USER;
+  const password = process.env.MYSNOW_PASS;
 
   if (!email || !password) {
-    console.log('  → ⚠ TAAP credentials not configured (EXPEDIA_USER / EXPEDIA_PASS)');
+    console.log('  → ⚠ TAAP credentials not configured (MYSNOW_USER / MYSNOW_PASS)');
     return false;
   }
 
@@ -261,7 +261,7 @@ async function isCaptchaPage(page) {
   }
 }
 
-async function searchExpedia(params) {
+async function searchMysnow(params) {
   const { destino, checkIn, checkOut, adultos, criancas, idadesCriancas, estilos, prioridades, orcamento } = params;
 
   const useProxy = isProxyConfigured();
@@ -381,7 +381,7 @@ async function searchExpedia(params) {
         } catch (navErr) {
           console.log(`  → Warm-up navigation slow (${navErr.message}), continuing anyway...`);
         }
-        console.log('  → ⚠ No TAAP credentials — set EXPEDIA_USER and EXPEDIA_PASS env vars');
+        console.log('  → ⚠ No TAAP credentials — set MYSNOW_USER and MYSNOW_PASS env vars');
       }
       await delay(800 + Math.random() * 700);
 
@@ -407,11 +407,11 @@ async function searchExpedia(params) {
       try { await withTimeout(simulateMouseMovement(page), 3000, 'mouse movement'); } catch {}
       console.log('  → Ready to search');
 
-      // Navigate to Expedia Hotel-Search
+      // Navigate to Mysnow Hotel-Search
       const searchUrl = buildSearchUrl(destino, checkIn, checkOut, adultos, criancas, idadesCriancas);
       console.log('  → Navigating to:', searchUrl);
 
-      // Use domcontentloaded instead of networkidle2 — Expedia has persistent
+      // Use domcontentloaded instead of networkidle2 — Mysnow has persistent
       // connections (analytics, websockets, ads) that prevent networkidle2 from
       // resolving for 30-60s. The API interceptor captures data as it arrives.
       // Wrap in try/catch — timeout doesn't mean failure, the SPA continues loading.
@@ -447,7 +447,7 @@ async function searchExpedia(params) {
         return [];
       }
 
-      // Wait for SPA hydration — Expedia is a Next.js app, the initial HTML is
+      // Wait for SPA hydration — Mysnow is a Next.js app, the initial HTML is
       // an empty shell. We must wait for JavaScript to render actual content.
       console.log('  → Waiting for SPA hydration...');
       try {
@@ -467,7 +467,7 @@ async function searchExpedia(params) {
       let isBlocked = false;
       let blockReason = '';
 
-      // Soft block: Expedia serves a completely blank page instead of a CAPTCHA
+      // Soft block: Mysnow serves a completely blank page instead of a CAPTCHA
       if (!postTitle && postBodyLen < 50) {
         isBlocked = true;
         blockReason = 'blank page (soft block)';
@@ -603,7 +603,7 @@ async function searchExpedia(params) {
       return filtered;
 
     } catch (error) {
-      console.error(`Expedia scraper error (attempt ${attempt}):`, error.message);
+      console.error(`Mysnow scraper error (attempt ${attempt}):`, error.message);
       if (attempt >= MAX_RETRIES) return [];
     } finally {
       if (browser) { try { await browser.close(); } catch {} }
@@ -617,7 +617,7 @@ async function searchExpedia(params) {
  * Apply additional stealth measures on top of puppeteer-extra-plugin-stealth.
  * The stealth plugin already handles: webdriver, chrome.runtime, navigator.plugins,
  * permissions, iframe contentWindow, media codecs, etc.
- * Here we add extra measures specific to Expedia's detection.
+ * Here we add extra measures specific to Mysnow's detection.
  */
 async function applyStealthMeasures(page) {
   // Realistic User-Agent (Chrome 131 on Windows 10 — current stable)
@@ -724,7 +724,7 @@ async function simulateHumanScroll(page) {
 }
 
 /**
- * Build public Expedia Hotel-Search URL
+ * Build public Mysnow Hotel-Search URL
  */
 function buildSearchUrl(destino, checkIn, checkOut, adultos, criancas, idadesCriancas) {
   const params = new URLSearchParams({
@@ -1477,4 +1477,4 @@ function filterResults(hotels, { estilos, prioridades, orcamento }) {
   return f.slice(0, 10);
 }
 
-module.exports = { searchExpedia, isProxyConfigured };
+module.exports = { searchMysnow, isProxyConfigured };

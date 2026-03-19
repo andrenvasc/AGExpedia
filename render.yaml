@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: expedia-ag
+    name: mysnow-ag
     runtime: node
     buildCommand: npm install
     startCommand: node src/server.js
@@ -9,9 +9,9 @@ services:
         value: production
       - key: BASE_URL
         sync: false
-      - key: EXPEDIA_USER
+      - key: MYSNOW_USER
         sync: false
-      - key: EXPEDIA_PASS
+      - key: MYSNOW_PASS
         sync: false
       - key: RESEND_API_KEY
         sync: false

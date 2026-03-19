@@ -1,6 +1,6 @@
-# ExpediaAG - GW Travel
+# AGMysnow - GW Travel
 
-Agente de automação para cotação de viagens. Recebe dados do cliente via formulário, pesquisa hotéis no Expedia TAAP, coleta reviews, gera relatório HTML e envia por e-mail.
+Agente de automação para cotação de viagens. Recebe dados do cliente via formulário, pesquisa hotéis no Mysnow TAAP, coleta reviews, gera relatório HTML e envia por e-mail.
 
 ## Estrutura
 
@@ -13,8 +13,8 @@ Agente de automação para cotação de viagens. Recebe dados do cliente via for
 ├── src/
 │   ├── server.js            # Servidor Express
 │   ├── agent.js             # Orquestrador principal
-│   ├── expedia-scraper.js   # Automação Expedia TAAP (Puppeteer)
-│   ├── review-fetcher.js    # Busca reviews TripAdvisor/Expedia
+│   ├── mysnow-scraper.js    # Automação Mysnow TAAP (Puppeteer)
+│   ├── review-fetcher.js    # Busca reviews TripAdvisor/Mysnow
 │   ├── report-generator.js  # Gera relatório HTML
 │   └── email-sender.js      # Envia e-mail com link
 ├── templates/
@@ -47,7 +47,7 @@ npm start
 
 Veja `.env.example` para todas as variáveis necessárias:
 
-- **Expedia TAAP**: Credenciais de login
+- **Mysnow TAAP**: Credenciais de login
 - **E-mail**: Resend API ou SMTP (Gmail, etc.)
 - **WhatsApp**: Número para botão de contato
 - **Servidor**: Porta e URL base
@@ -56,8 +56,8 @@ Veja `.env.example` para todas as variáveis necessárias:
 
 1. Cliente preenche formulário com destino, datas, preferências
 2. Servidor recebe dados via POST `/api/cotacao`
-3. Agente busca hotéis no Expedia TAAP
-4. Reviews são coletados do TripAdvisor e Expedia público
+3. Agente busca hotéis no Mysnow TAAP
+4. Reviews são coletados do TripAdvisor e Mysnow público
 5. 3 opções são selecionadas (3, 4 e 5 estrelas)
 6. Relatório HTML é gerado em `/outputs/`
 7. E-mail com link para o relatório é enviado ao cliente

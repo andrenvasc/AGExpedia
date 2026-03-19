@@ -1,7 +1,7 @@
 {
-  "name": "expedia-ag",
+  "name": "mysnow-ag",
   "version": "1.0.0",
-  "description": "ExpediaAG - Agente de automação para cotação de viagens GW Travel",
+  "description": "AGMysnow - Agente de automação para cotação de viagens GW Travel",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",

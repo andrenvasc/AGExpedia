@@ -285,5 +285,5 @@ app.get('/api/health', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`GW Travel - ExpediaAG running on ${BASE_URL}`);
+  console.log(`GW Travel - AGMysnow running on ${BASE_URL}`);
 });
