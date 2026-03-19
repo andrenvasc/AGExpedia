@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: mysnow-ag
+    name: snow-ag
     runtime: node
     buildCommand: npm install
     startCommand: node src/server.js
