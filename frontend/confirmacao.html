@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GW Travel - Cotação Solicitada</title>
+  <link rel="stylesheet" href="assets/styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="container confirmation-page">
+    <header class="header">
+      <div class="logo">
+        <img src="assets/gw-logo.png" alt="GW Travel" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+        <div class="logo-fallback" style="display:none;">
+          <span class="logo-text">GW</span>
+          <span class="logo-sub">TRAVEL</span>
+        </div>
+      </div>
+      <p class="tagline">Viagens Personalizadas</p>
+    </header>
+
+    <main class="confirmation-content">
+      <div class="check-animation">
+        <svg class="checkmark" viewBox="0 0 52 52">
+          <circle class="checkmark-circle" cx="26" cy="26" r="25" fill="none"/>
+          <path class="checkmark-check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+        </svg>
+      </div>
+
+      <h1 class="confirmation-title">Pronto!</h1>
+      <p class="confirmation-text">
+        Sua cotação está sendo preparada e será enviada para
+        <strong id="confirmEmail">seu e-mail</strong> em instantes.
+      </p>
+
+      <div class="confirmation-details">
+        <p><strong id="confirmNome"></strong></p>
+        <p>Destino: <strong id="confirmDestino"></strong></p>
+      </div>
+
+      <div class="confirmation-note">
+        <p>Fique de olho na sua caixa de entrada (e na pasta de spam, por via das dúvidas).</p>
+      </div>
+
+      <a href="/" class="btn-back">Fazer nova cotação</a>
+    </main>
+
+    <footer class="footer">
+      <p>GW Travel - Viagens Personalizadas</p>
+      <p class="footer-sub">www.gwtravel.com.br</p>
+    </footer>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const params = new URLSearchParams(window.location.search);
+      const email = params.get('email');
+      const nome = params.get('nome');
+      const destino = params.get('destino');
+
+      if (email) document.getElementById('confirmEmail').textContent = email;
+      if (nome) document.getElementById('confirmNome').textContent = nome;
+      if (destino) document.getElementById('confirmDestino').textContent = destino;
+    });
+  </script>
+</body>
+</html>

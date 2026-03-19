@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AGMysnow - Processamento</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="container">
+    <header class="header" style="padding: 16px 0 12px; margin-bottom: 16px; border-bottom: 2px solid #333;">
+      <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
+        <span style="font-size: 20px; font-weight: 700; color: #333; letter-spacing: 2px;">AGMysnow</span>
+        <span style="font-size: 11px; color: #999; font-weight: 400; letter-spacing: 1px;">PAINEL INTERNO</span>
+      </div>
+    </header>
+
+    <nav class="internal-nav">
+      <a href="/" class="nav-link">Nova Cotacao</a>
+      <a href="/dashboard" class="nav-link">Dashboard</a>
+    </nav>
+
+    <main class="processing-content">
+      <!-- Progress Section -->
+      <div id="progressSection">
+        <h1 class="page-title" style="font-size: 22px;">Processando Cotacao</h1>
+        <p class="page-subtitle" id="clienteInfo" style="margin-bottom: 16px;"></p>
+
+        <div class="progress-container">
+          <div class="progress-bar">
+            <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+          </div>
+          <p class="progress-percent" id="progressPercent">0%</p>
+        </div>
+
+        <div class="steps-container" id="stepsContainer">
+          <div class="step" id="step-search" data-step="search">
+            <div class="step-icon">&#128269;</div>
+            <div class="step-info">
+              <p class="step-title">Buscando hoteis na Mysnow</p>
+              <p class="step-status">Aguardando...</p>
+            </div>
+          </div>
+          <div class="step" id="step-reviews" data-step="reviews">
+            <div class="step-icon">&#11088;</div>
+            <div class="step-info">
+              <p class="step-title">Coletando avaliacoes</p>
+              <p class="step-status">Aguardando...</p>
+            </div>
+          </div>
+          <div class="step" id="step-select" data-step="select">
+            <div class="step-icon">&#127919;</div>
+            <div class="step-info">
+              <p class="step-title">Selecionando melhores opcoes</p>
+              <p class="step-status">Aguardando...</p>
+            </div>
+          </div>
+          <div class="step" id="step-report" data-step="report">
+            <div class="step-icon">&#128196;</div>
+            <div class="step-info">
+              <p class="step-title">Montando cotacao</p>
+              <p class="step-status">Aguardando...</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live results appear here as they come in -->
+        <div id="liveResults" class="live-results" style="display:none;">
+          <h2 class="section-title">Resultados encontrados</h2>
+          <div id="liveHotels"></div>
+        </div>
+      </div>
+
+      <!-- Done Section (hidden initially) -->
+      <div id="doneSection" style="display:none;">
+        <div class="check-animation">
+          <svg class="checkmark" viewBox="0 0 52 52">
+            <circle class="checkmark-circle" cx="26" cy="26" r="25" fill="none"/>
+            <path class="checkmark-check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+          </svg>
+        </div>
+        <h1 class="page-title" style="font-size: 22px;">Processamento Concluido</h1>
+        <p class="page-subtitle" style="margin-bottom: 8px;">Cotacao gerada com sucesso.</p>
+
+        <!-- Internal summary -->
+        <div id="doneSummary" style="background: #f5f5f5; border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px; margin: 16px 0; text-align: left;">
+          <p style="font-size: 13px; color: #555; margin-bottom: 4px;" id="summaryCliente"></p>
+          <p style="font-size: 13px; color: #555; margin-bottom: 4px;" id="summaryDestino"></p>
+          <p style="font-size: 13px; color: #555;" id="summaryHoteis"></p>
+        </div>
+
+        <div class="done-actions">
+          <!-- Link do cliente - copiar -->
+          <button id="copyLinkBtn" class="btn-submit" style="cursor: pointer;" onclick="copyClientLink()">Copiar Link do Cliente</button>
+
+          <!-- Preview do que o cliente vera - abre em nova aba -->
+          <a id="previewClientBtn" href="#" target="_blank" class="btn-copy" style="display:inline-block; text-decoration:none; text-align:center; width:100%; max-width:360px;">Abrir Preview (como cliente ve)</a>
+
+          <div style="display: flex; gap: 12px; width: 100%; max-width: 360px;">
+            <a href="/" class="btn-back" style="flex: 1; text-align: center;">Nova Cotacao</a>
+            <a href="/dashboard" class="btn-back" style="flex: 1; text-align: center;">Dashboard</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Error Section (hidden initially) -->
+      <div id="errorSection" style="display:none;">
+        <h1 class="page-title" style="color: var(--error);">Erro no Processamento</h1>
+        <p class="page-subtitle" id="errorMsg">Ocorreu um erro ao gerar a cotacao.</p>
+        <div class="done-actions">
+          <a href="/" class="btn-submit" style="display:inline-block; text-decoration:none;">Tentar Novamente</a>
+        </div>
+      </div>
+    </main>
+
+    <footer class="footer" style="border-top: 1px solid #e0e0e0; padding: 12px 0 4px;">
+      <p style="font-size: 11px; color: #bbb;">AGMysnow - Sistema Interno</p>
+    </footer>
+  </div>
+
+  <script>
+    var clientReportUrl = '';
+    var clienteNome = '';
+    var destinoNome = '';
+    var hotelsFound = 0;
+
+    function copyClientLink() {
+      if (clientReportUrl) {
+        navigator.clipboard.writeText(clientReportUrl).then(function() {
+          var btn = document.getElementById('copyLinkBtn');
+          btn.textContent = 'Link Copiado!';
+          setTimeout(function() { btn.textContent = 'Copiar Link do Cliente'; }, 2000);
+        });
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      var pathParts = window.location.pathname.split('/');
+      var quotationId = pathParts[pathParts.length - 1];
+
+      if (!quotationId) {
+        document.getElementById('errorSection').style.display = 'block';
+        document.getElementById('progressSection').style.display = 'none';
+        return;
+      }
+
+      // Simulated progress while waiting for real events
+      var simulatedProgress = 0;
+      var simulatedInterval = setInterval(function() {
+        if (simulatedProgress < 8) {
+          simulatedProgress += 0.5;
+          setProgressBar(simulatedProgress);
+        }
+      }, 300);
+
+      // Connect to SSE for real-time progress
+      var eventSource = new EventSource('/api/cotacao/' + quotationId + '/progress');
+      var currentProgress = 0;
+
+      eventSource.addEventListener('progress', function(e) {
+        var data = JSON.parse(e.data);
+        clearInterval(simulatedInterval);
+
+        updateStep(data.step, data.status, data.message);
+
+        if (data.progress) {
+          animateProgress(data.progress);
+        }
+
+        if (data.clienteNome) {
+          clienteNome = data.clienteNome;
+          destinoNome = data.destino;
+          document.getElementById('clienteInfo').textContent =
+            'Cliente: ' + data.clienteNome + ' | Destino: ' + data.destino;
+        }
+
+        // Track hotels found from step messages
+        if (data.step === 'search' && data.status === 'done' && data.message) {
+          var m = data.message.match(/(\d+)/);
+          if (m) hotelsFound = parseInt(m[1]);
+        }
+      });
+
+      eventSource.addEventListener('hotel_found', function(e) {
+        var data = JSON.parse(e.data);
+        addLiveHotel(data);
+      });
+
+      eventSource.addEventListener('complete', function(e) {
+        var data = JSON.parse(e.data);
+        clientReportUrl = data.reportUrl;
+        eventSource.close();
+
+        // Show done section
+        animateProgress(100);
+        setTimeout(function() {
+          document.getElementById('progressSection').style.display = 'none';
+          document.getElementById('doneSection').style.display = 'block';
+          document.getElementById('previewClientBtn').href = clientReportUrl;
+
+          // Fill internal summary
+          document.getElementById('summaryCliente').textContent = 'Cliente: ' + (clienteNome || '-');
+          document.getElementById('summaryDestino').textContent = 'Destino: ' + (destinoNome || '-');
+          document.getElementById('summaryHoteis').textContent = 'Hoteis encontrados: ' + hotelsFound;
+        }, 800);
+      });
+
+      eventSource.addEventListener('error_event', function(e) {
+        var data = JSON.parse(e.data);
+        eventSource.close();
+        document.getElementById('progressSection').style.display = 'none';
+        document.getElementById('errorSection').style.display = 'block';
+        document.getElementById('errorMsg').textContent = data.message || 'Erro ao gerar cotacao.';
+      });
+
+      eventSource.onerror = function() {
+        eventSource.close();
+        fetch('/api/cotacao/' + quotationId + '/status')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (data.status === 'completed' && data.reportUrl) {
+              clientReportUrl = data.reportUrl;
+              document.getElementById('progressSection').style.display = 'none';
+              document.getElementById('doneSection').style.display = 'block';
+              document.getElementById('previewClientBtn').href = clientReportUrl;
+            }
+          })
+          .catch(function() {});
+      };
+
+      function setProgressBar(value) {
+        var fill = document.getElementById('progressFill');
+        var label = document.getElementById('progressPercent');
+        var v = Math.round(value);
+        fill.style.width = v + '%';
+        label.textContent = v + '%';
+      }
+
+      function animateProgress(target) {
+        var fill = document.getElementById('progressFill');
+        var label = document.getElementById('progressPercent');
+        var step = currentProgress < target ? 1 : -1;
+        var interval = setInterval(function() {
+          currentProgress += step;
+          fill.style.width = currentProgress + '%';
+          label.textContent = currentProgress + '%';
+          if (currentProgress >= target) {
+            clearInterval(interval);
+            currentProgress = target;
+          }
+        }, 20);
+      }
+
+      function updateStep(stepName, status, message) {
+        var stepEl = document.getElementById('step-' + stepName);
+        if (!stepEl) return;
+
+        var statusEl = stepEl.querySelector('.step-status');
+        stepEl.classList.remove('step-active', 'step-done', 'step-error');
+
+        if (status === 'active') {
+          stepEl.classList.add('step-active');
+          statusEl.textContent = message || 'Em andamento...';
+        } else if (status === 'done') {
+          stepEl.classList.add('step-done');
+          statusEl.textContent = message || 'Concluido';
+        } else if (status === 'error') {
+          stepEl.classList.add('step-error');
+          statusEl.textContent = message || 'Erro';
+        }
+      }
+
+      function addLiveHotel(hotel) {
+        var container = document.getElementById('liveResults');
+        var list = document.getElementById('liveHotels');
+        container.style.display = 'block';
+
+        var card = document.createElement('div');
+        card.className = 'live-hotel-card';
+        card.innerHTML =
+          '<div class="live-hotel-tier">' + (hotel.tierLabel || '') + '</div>' +
+          '<div class="live-hotel-info">' +
+            '<h3>' + escapeHtml(hotel.name) + '</h3>' +
+            '<p>' + escapeHtml(hotel.location || '') + '</p>' +
+            (hotel.pricePerNight ? '<p class="live-hotel-price">R$ ' + hotel.pricePerNight.toFixed(2).replace('.', ',') + '/noite</p>' : '') +
+          '</div>';
+        list.appendChild(card);
+      }
+
+      function escapeHtml(str) {
+        if (!str) return '';
+        var div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+      }
+    });
+  </script>
+</body>
+</html>

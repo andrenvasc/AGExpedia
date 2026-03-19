@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GW Travel - Cotação de Hospedagem</title>
+  <link rel="stylesheet" href="assets/styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="logo">
+        <img src="assets/gw-logo.png" alt="GW Travel" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+        <div class="logo-fallback" style="display:none;">
+          <span class="logo-text">GW</span>
+          <span class="logo-sub">TRAVEL</span>
+        </div>
+      </div>
+      <p class="tagline">Viagens Personalizadas</p>
+    </header>
+
+    <nav class="internal-nav">
+      <a href="/" class="nav-link active">Nova Cotação</a>
+      <a href="/dashboard" class="nav-link">Dashboard</a>
+    </nav>
+
+    <main>
+      <h1 class="page-title">Nova Cotação</h1>
+      <p class="page-subtitle">Preencha os dados da viagem para gerar a cotação em tempo real.</p>
+
+      <form id="intakeForm" novalidate>
+
+        <!-- Seção 1: Dados do Cliente -->
+        <section class="form-section">
+          <h2 class="section-title"><span class="section-icon">&#128100;</span> Dados do Cliente</h2>
+
+          <div class="form-group">
+            <label for="nome">Nome do Cliente <span class="required">*</span></label>
+            <input type="text" id="nome" name="nome" placeholder="Nome completo do cliente..." required>
+            <span class="error-msg" id="nome-error"></span>
+          </div>
+        </section>
+
+        <!-- Seção 2: Destino -->
+        <section class="form-section">
+          <h2 class="section-title"><span class="section-icon">&#127758;</span> Destino</h2>
+
+          <div class="form-group">
+            <label for="destino">Cidade ou País <span class="required">*</span></label>
+            <input type="text" id="destino" name="destino" placeholder="Comece a digitar o destino..." required autocomplete="off">
+            <div id="destino-suggestions" class="autocomplete-suggestions"></div>
+            <span class="error-msg" id="destino-error"></span>
+          </div>
+        </section>
+
+        <!-- Seção 3: Datas -->
+        <section class="form-section">
+          <h2 class="section-title"><span class="section-icon">&#128197;</span> Período</h2>
+
+          <div class="form-row">
+            <div class="form-group half">
+              <label for="checkIn">Check-in <span class="required">*</span></label>
+              <input type="date" id="checkIn" name="checkIn" required>
+              <span class="error-msg" id="checkIn-error"></span>
+            </div>
+            <div class="form-group half">
+              <label for="checkOut">Check-out <span class="required">*</span></label>
+              <input type="date" id="checkOut" name="checkOut" required>
+              <span class="error-msg" id="checkOut-error"></span>
+            </div>
+          </div>
+
+          <p class="nights-count" id="nightsCount"></p>
+        </section>
+
+        <!-- Seção 4: Hóspedes -->
+        <section class="form-section">
+          <h2 class="section-title"><span class="section-icon">&#128101;</span> Hóspedes</h2>
+
+          <div class="form-row">
+            <div class="form-group half">
+              <label for="adultos">Adultos <span class="required">*</span></label>
+              <select id="adultos" name="adultos" required>
+                <option value="1">1</option>
+                <option value="2" selected>2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+                <option value="6">6</option>
+                <option value="7">7</option>
+                <option value="8">8</option>
+                <option value="9">9</option>
+                <option value="10">10</option>
+              </select>
+            </div>
+            <div class="form-group half">
+              <label for="criancas">Crianças</label>
+              <select id="criancas" name="criancas">
+                <option value="0" selected>0</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+                <option value="6">6</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="idadesCriancasContainer" class="children-ages" style="display: none;">
+            <label>Idades das crianças:</label>
+            <div id="idadesCriancasFields" class="ages-row"></div>
+          </div>
+        </section>
+
+        <!-- Seção 5: Estilo de Hospedagem -->
+        <section class="form-section">
+          <h2 class="section-title"><span class="section-icon">&#127976;</span> Estilo de Hospedagem</h2>
+          <p class="section-hint">Selecione quantas quiser</p>
+
+          <div class="chips-container">
+            <label class="chip">
+              <input type="checkbox" name="estilos" value="resort">
+              <span class="chip-label">Resort</span>
+            </label>
+            <label class="chip">
+              <input type="checkbox" name="estilos" value="boutique">
+              <span class="chip-label">Boutique</span>
+            </label>
+            <label class="chip">
+              <input type="checkbox" name="estilos" value="hotel_urbano">
+              <span class="chip-label">Hotel Urbano</span>
+            </label>
+            <label class="chip">
+              <input type="checkbox" name="estilos" value="apart_hotel">
+              <span class="chip-label">Apart-Hotel</span>
+            </label>
+            <label class="chip">
+              <input type="checkbox" name="estilos" value="pousada">
+              <span class="chip-label">Pousada</span>
+            </label>
+            <label class="chip">
+              <input type="checkbox" name="estilos" value="all_inclusive">
+              <span class="chip-label">All-Inclusive</span>
+            </label>
+          </div>
+        </section>
+
+        <!-- Seção 6: Prioridades -->
+        <section class="form-section">
+          <h2 class="section-title"><span class="section-icon">&#11088;</span> O que é mais importante?</h2>
+          <p class="section-hint">Selecione até 3</p>
+
+          <div class="chips-container">
+            <label class="chip">
+              <input type="checkbox" name="prioridades" value="localizacao" class="priority-check">
+              <span class="chip-label">Localização Central</span>
+            </label>
+            <label class="chip">
+              <input type="checkbox" name="prioridades" value="luxo" class="priority-check">
+              <span class="chip-label">Luxo</span>
+            </label>
+            <label class="chip">
+              <input type="checkbox" name="prioridades" value="preco" class="priority-check">
+              <span class="chip-label">Preço Baixo</span>
+            </label>
+            <label class="chip">
+              <input type="checkbox" name="prioridades" value="amenities" class="priority-check">
+              <span class="chip-label">Amenities (spa/pool)</span>
+            </label>
+            <label class="chip">
+              <input type="checkbox" name="prioridades" value="vista" class="priority-check">
+              <span class="chip-label">Vista</span>
+            </label>
+            <label class="chip">
+              <input type="checkbox" name="prioridades" value="silencio" class="priority-check">
+              <span class="chip-label">Silêncio / Descanso</span>
+            </label>
+            <label class="chip">
+              <input type="checkbox" name="prioridades" value="familia" class="priority-check">
+              <span class="chip-label">Família friendly</span>
+            </label>
+            <label class="chip">
+              <input type="checkbox" name="prioridades" value="romantico" class="priority-check">
+              <span class="chip-label">Romântico / Casal</span>
+            </label>
+          </div>
+          <span class="error-msg" id="prioridades-error"></span>
+        </section>
+
+        <!-- Seção 7: Orçamento (multi-select) -->
+        <section class="form-section">
+          <h2 class="section-title"><span class="section-icon">&#128176;</span> Faixa de Orçamento <span class="optional">(por noite)</span></h2>
+          <p class="section-hint">Selecione uma ou mais faixas</p>
+
+          <div class="chips-container">
+            <label class="chip">
+              <input type="checkbox" name="orcamento" value="economico">
+              <span class="chip-label">Econômico <small>(até R$ 400)</small></span>
+            </label>
+            <label class="chip">
+              <input type="checkbox" name="orcamento" value="moderado">
+              <span class="chip-label">Moderado <small>(R$ 400-800)</small></span>
+            </label>
+            <label class="chip">
+              <input type="checkbox" name="orcamento" value="confortavel">
+              <span class="chip-label">Confortável <small>(R$ 800-1.500)</small></span>
+            </label>
+            <label class="chip">
+              <input type="checkbox" name="orcamento" value="premium" checked>
+              <span class="chip-label">Premium <small>(R$ 1.500-3.000)</small></span>
+            </label>
+            <label class="chip">
+              <input type="checkbox" name="orcamento" value="luxo">
+              <span class="chip-label">Luxo <small>(acima de R$ 3.000)</small></span>
+            </label>
+            <label class="chip">
+              <input type="checkbox" name="orcamento" value="sem_limite">
+              <span class="chip-label">Sem limite</span>
+            </label>
+          </div>
+        </section>
+
+        <!-- Seção 8: Observações -->
+        <section class="form-section">
+          <h2 class="section-title"><span class="section-icon">&#128221;</span> Observações adicionais <span class="optional">(opcional)</span></h2>
+
+          <div class="form-group">
+            <textarea id="observacoes" name="observacoes" rows="4" placeholder='Ex: "Precisa ter academia", "Perto do centro de convenções"...'></textarea>
+          </div>
+        </section>
+
+        <!-- Submit -->
+        <div class="submit-section">
+          <button type="submit" class="btn-submit" id="btnSubmit">
+            &#128269; GERAR COTAÇÃO
+          </button>
+          <p class="submit-hint">A cotação será gerada em tempo real na próxima tela.</p>
+        </div>
+
+      </form>
+    </main>
+
+    <footer class="footer">
+      <p>GW Travel - Viagens Personalizadas</p>
+      <p class="footer-sub">www.gwtravel.com.br</p>
+    </footer>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      var form = document.getElementById('intakeForm');
+      var criancasSelect = document.getElementById('criancas');
+      var idadesContainer = document.getElementById('idadesCriancasContainer');
+      var idadesFields = document.getElementById('idadesCriancasFields');
+      var checkInInput = document.getElementById('checkIn');
+      var checkOutInput = document.getElementById('checkOut');
+      var nightsCount = document.getElementById('nightsCount');
+      var priorityChecks = document.querySelectorAll('.priority-check');
+
+      // Set min date to today
+      var today = new Date().toISOString().split('T')[0];
+      checkInInput.setAttribute('min', today);
+      checkOutInput.setAttribute('min', today);
+
+      // === Destination autocomplete ===
+      var destinos = [
+        'Paris, França', 'Londres, Inglaterra', 'Roma, Itália', 'Milão, Itália',
+        'Barcelona, Espanha', 'Madrid, Espanha', 'Lisboa, Portugal', 'Porto, Portugal',
+        'Amsterdã, Holanda', 'Berlim, Alemanha', 'Munique, Alemanha', 'Viena, Áustria',
+        'Praga, República Tcheca', 'Budapeste, Hungria', 'Atenas, Grécia',
+        'Santorini, Grécia', 'Mykonos, Grécia', 'Dubrovnik, Croácia',
+        'Nova York, EUA', 'Miami, EUA', 'Orlando, EUA', 'Los Angeles, EUA',
+        'Las Vegas, EUA', 'San Francisco, EUA', 'Chicago, EUA', 'Boston, EUA',
+        'Cancún, México', 'Cidade do México, México', 'Playa del Carmen, México',
+        'Buenos Aires, Argentina', 'Bariloche, Argentina', 'Mendoza, Argentina',
+        'Santiago, Chile', 'Cartagena, Colômbia', 'Lima, Peru', 'Cusco, Peru',
+        'Punta Cana, República Dominicana', 'Aruba',
+        'Tóquio, Japão', 'Kyoto, Japão', 'Osaka, Japão',
+        'Bangkok, Tailândia', 'Phuket, Tailândia',
+        'Dubai, Emirados Árabes', 'Abu Dhabi, Emirados Árabes',
+        'Maldivas', 'Bali, Indonésia', 'Singapura',
+        'Sydney, Austrália', 'Melbourne, Austrália',
+        'Cape Town, África do Sul',
+        'Fernando de Noronha, Brasil', 'Rio de Janeiro, Brasil',
+        'Gramado, Brasil', 'Florianópolis, Brasil', 'Salvador, Brasil',
+        'Jericoacoara, Brasil', 'Búzios, Brasil', 'São Paulo, Brasil',
+        'Foz do Iguaçu, Brasil', 'Trancoso, Brasil', 'Maceió, Brasil',
+        'Natal, Brasil', 'Recife, Brasil', 'Manaus, Brasil',
+        'Bonito, Brasil', 'Campos do Jordão, Brasil'
+      ];
+
+      var destinoInput = document.getElementById('destino');
+      var suggestionsBox = document.getElementById('destino-suggestions');
+
+      destinoInput.addEventListener('input', function() {
+        var query = this.value.toLowerCase().trim();
+        suggestionsBox.innerHTML = '';
+        suggestionsBox.style.display = 'none';
+
+        if (query.length < 2) return;
+
+        var matches = destinos.filter(function(d) {
+          return d.toLowerCase().indexOf(query) !== -1;
+        }).slice(0, 8);
+
+        if (matches.length === 0) return;
+
+        matches.forEach(function(match) {
+          var div = document.createElement('div');
+          div.className = 'autocomplete-item';
+          div.textContent = match;
+          div.addEventListener('click', function() {
+            destinoInput.value = match;
+            suggestionsBox.innerHTML = '';
+            suggestionsBox.style.display = 'none';
+            clearError('destino-error');
+          });
+          suggestionsBox.appendChild(div);
+        });
+        suggestionsBox.style.display = 'block';
+      });
+
+      // Close suggestions on click outside
+      document.addEventListener('click', function(e) {
+        if (!destinoInput.contains(e.target) && !suggestionsBox.contains(e.target)) {
+          suggestionsBox.style.display = 'none';
+        }
+      });
+
+      // Dynamic children age fields
+      criancasSelect.addEventListener('change', function() {
+        var count = parseInt(this.value);
+        idadesFields.innerHTML = '';
+
+        if (count > 0) {
+          idadesContainer.style.display = 'block';
+          for (var i = 0; i < count; i++) {
+            var select = document.createElement('select');
+            select.name = 'idadeCrianca_' + i;
+            select.className = 'age-select';
+            select.required = true;
+            for (var age = 0; age <= 17; age++) {
+              var opt = document.createElement('option');
+              opt.value = age;
+              opt.textContent = age + (age === 1 ? ' ano' : ' anos');
+              select.appendChild(opt);
+            }
+            idadesFields.appendChild(select);
+          }
+        } else {
+          idadesContainer.style.display = 'none';
+        }
+      });
+
+      // Calculate nights
+      function updateNights() {
+        var checkIn = checkInInput.value;
+        var checkOut = checkOutInput.value;
+        if (checkIn && checkOut) {
+          var diff = (new Date(checkOut) - new Date(checkIn)) / (1000 * 60 * 60 * 24);
+          if (diff > 0) {
+            nightsCount.textContent = diff + (diff === 1 ? ' noite' : ' noites');
+            nightsCount.style.display = 'block';
+          } else {
+            nightsCount.textContent = '';
+            nightsCount.style.display = 'none';
+          }
+        }
+      }
+
+      checkInInput.addEventListener('change', function() {
+        if (this.value) {
+          var nextDay = new Date(this.value);
+          nextDay.setDate(nextDay.getDate() + 1);
+          checkOutInput.setAttribute('min', nextDay.toISOString().split('T')[0]);
+          if (checkOutInput.value && new Date(checkOutInput.value) <= new Date(this.value)) {
+            checkOutInput.value = nextDay.toISOString().split('T')[0];
+          }
+        }
+        updateNights();
+      });
+
+      checkOutInput.addEventListener('change', updateNights);
+
+      // Priority limit (max 3)
+      priorityChecks.forEach(function(check) {
+        check.addEventListener('change', function() {
+          var checked = document.querySelectorAll('.priority-check:checked');
+          if (checked.length > 3) {
+            this.checked = false;
+            showError('prioridades-error', 'Selecione no máximo 3 prioridades.');
+          } else {
+            clearError('prioridades-error');
+          }
+        });
+      });
+
+      // Real-time validation
+      function showError(id, msg) {
+        var el = document.getElementById(id);
+        if (el) {
+          el.textContent = msg;
+          el.style.display = 'block';
+        }
+      }
+
+      function clearError(id) {
+        var el = document.getElementById(id);
+        if (el) {
+          el.textContent = '';
+          el.style.display = 'none';
+        }
+      }
+
+      document.getElementById('nome').addEventListener('blur', function() {
+        if (!this.value.trim()) showError('nome-error', 'Nome é obrigatório.');
+        else clearError('nome-error');
+      });
+
+      document.getElementById('destino').addEventListener('blur', function() {
+        if (!this.value.trim()) showError('destino-error', 'Destino é obrigatório.');
+        else clearError('destino-error');
+      });
+
+      // Form submission
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        var valid = true;
+        var nome = document.getElementById('nome').value.trim();
+        var destino = document.getElementById('destino').value.trim();
+        var checkIn = checkInInput.value;
+        var checkOut = checkOutInput.value;
+
+        if (!nome) { showError('nome-error', 'Nome é obrigatório.'); valid = false; }
+        else clearError('nome-error');
+
+        if (!destino) { showError('destino-error', 'Destino é obrigatório.'); valid = false; }
+        else clearError('destino-error');
+
+        if (!checkIn) { showError('checkIn-error', 'Data de check-in é obrigatória.'); valid = false; }
+        else clearError('checkIn-error');
+
+        if (!checkOut) { showError('checkOut-error', 'Data de check-out é obrigatória.'); valid = false; }
+        else clearError('checkOut-error');
+
+        if (!valid) {
+          document.querySelector('.error-msg[style*="block"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
+
+        // Collect data
+        var estilos = Array.from(document.querySelectorAll('input[name="estilos"]:checked')).map(function(c) { return c.value; });
+        var prioridades = Array.from(document.querySelectorAll('input[name="prioridades"]:checked')).map(function(c) { return c.value; });
+        var orcamentos = Array.from(document.querySelectorAll('input[name="orcamento"]:checked')).map(function(c) { return c.value; });
+        if (orcamentos.length === 0) orcamentos = ['sem_limite'];
+
+        var criancasCount = parseInt(criancasSelect.value);
+        var idadesCriancas = [];
+        for (var i = 0; i < criancasCount; i++) {
+          var sel = document.querySelector('[name="idadeCrianca_' + i + '"]');
+          if (sel) idadesCriancas.push(parseInt(sel.value));
+        }
+
+        var payload = {
+          cliente: { nome: nome },
+          destino: destino,
+          checkIn: checkIn,
+          checkOut: checkOut,
+          adultos: parseInt(document.getElementById('adultos').value),
+          criancas: criancasCount,
+          idadesCriancas: idadesCriancas,
+          estilos: estilos,
+          prioridades: prioridades,
+          orcamentos: orcamentos,
+          observacoes: document.getElementById('observacoes').value.trim()
+        };
+
+        // Disable button
+        var btn = document.getElementById('btnSubmit');
+        btn.disabled = true;
+        btn.textContent = 'Iniciando...';
+
+        fetch('/api/cotacao', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data.success && data.quotationId) {
+            window.location.href = '/processando/' + data.quotationId;
+          } else {
+            alert('Erro ao iniciar cotação. Tente novamente.');
+            btn.disabled = false;
+            btn.innerHTML = '&#128269; GERAR COTAÇÃO';
+          }
+        })
+        .catch(function() {
+          alert('Erro de conexão. Tente novamente.');
+          btn.disabled = false;
+          btn.innerHTML = '&#128269; GERAR COTAÇÃO';
+        });
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GW Travel - Dashboard</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="container" style="max-width: 900px;">
+    <header class="header">
+      <div class="logo">
+        <img src="/assets/gw-logo.png" alt="GW Travel" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+        <div class="logo-fallback" style="display:none;">
+          <span class="logo-text">GW</span>
+          <span class="logo-sub">TRAVEL</span>
+        </div>
+      </div>
+      <p class="tagline">Viagens Personalizadas</p>
+    </header>
+
+    <nav class="internal-nav">
+      <a href="/" class="nav-link">Nova Cotação</a>
+      <a href="/dashboard" class="nav-link active">Dashboard</a>
+    </nav>
+
+    <main>
+      <h1 class="page-title">Dashboard de Cotações</h1>
+      <p class="page-subtitle">Todas as cotações geradas ficam armazenadas aqui.</p>
+
+      <!-- Search/Filter -->
+      <div class="dashboard-filters">
+        <input type="text" id="searchInput" placeholder="Buscar por nome do cliente ou destino..." class="dashboard-search">
+      </div>
+
+      <!-- Stats -->
+      <div class="dashboard-stats" id="dashboardStats">
+        <div class="stat-card">
+          <span class="stat-number" id="statTotal">0</span>
+          <span class="stat-label">Total</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-number" id="statCompleted">0</span>
+          <span class="stat-label">Concluídas</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-number" id="statProcessing">0</span>
+          <span class="stat-label">Em andamento</span>
+        </div>
+      </div>
+
+      <!-- Quotation List -->
+      <div id="quotationList" class="quotation-list">
+        <p class="loading-text">Carregando cotações...</p>
+      </div>
+
+      <!-- Empty State -->
+      <div id="emptyState" class="empty-state" style="display:none;">
+        <p>Nenhuma cotação encontrada.</p>
+        <a href="/" class="btn-back">Criar primeira cotação</a>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <p>GW Travel - Viagens Personalizadas</p>
+      <p class="footer-sub">www.gwtravel.com.br</p>
+    </footer>
+  </div>
+
+  <script>
+    var allQuotations = [];
+
+    document.addEventListener('DOMContentLoaded', function() {
+      loadQuotations();
+
+      document.getElementById('searchInput').addEventListener('input', function() {
+        filterQuotations(this.value.trim().toLowerCase());
+      });
+    });
+
+    function loadQuotations() {
+      fetch('/api/cotacoes')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          allQuotations = data.quotations || [];
+          updateStats(allQuotations);
+          renderQuotations(allQuotations);
+        })
+        .catch(function() {
+          document.getElementById('quotationList').innerHTML =
+            '<p class="error-text">Erro ao carregar cotações.</p>';
+        });
+    }
+
+    function updateStats(quotations) {
+      var total = quotations.length;
+      var completed = quotations.filter(function(q) { return q.status === 'completed'; }).length;
+      var processing = quotations.filter(function(q) { return q.status === 'processing'; }).length;
+
+      document.getElementById('statTotal').textContent = total;
+      document.getElementById('statCompleted').textContent = completed;
+      document.getElementById('statProcessing').textContent = processing;
+    }
+
+    function filterQuotations(query) {
+      if (!query) {
+        renderQuotations(allQuotations);
+        return;
+      }
+
+      var filtered = allQuotations.filter(function(q) {
+        return (q.clienteNome && q.clienteNome.toLowerCase().indexOf(query) !== -1) ||
+               (q.destino && q.destino.toLowerCase().indexOf(query) !== -1) ||
+               (q.numero && String(q.numero).indexOf(query) !== -1);
+      });
+      renderQuotations(filtered);
+    }
+
+    function renderQuotations(quotations) {
+      var container = document.getElementById('quotationList');
+      var emptyState = document.getElementById('emptyState');
+
+      if (quotations.length === 0) {
+        container.innerHTML = '';
+        emptyState.style.display = 'block';
+        return;
+      }
+
+      emptyState.style.display = 'none';
+
+      var html = quotations.map(function(q) {
+        var statusClass = q.status === 'completed' ? 'status-completed' :
+                          q.status === 'processing' ? 'status-processing' : 'status-error';
+        var statusText = q.status === 'completed' ? 'Concluída' :
+                         q.status === 'processing' ? 'Em andamento' : 'Erro';
+
+        var dateStr = '';
+        if (q.createdAt) {
+          var d = new Date(q.createdAt);
+          dateStr = d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        var actionsHtml = '';
+        if (q.status === 'completed' && q.reportUrl) {
+          actionsHtml =
+            '<a href="/processando/' + escapeHtml(q.id) + '" class="btn-action btn-view">Detalhes</a>' +
+            '<button class="btn-action btn-copy-link" onclick="copyQuotationLink(\'' + escapeHtml(q.reportUrl) + '\', this)">Copiar Link Cliente</button>';
+        } else if (q.status === 'processing') {
+          actionsHtml = '<a href="/processando/' + escapeHtml(q.id) + '" class="btn-action btn-view">Acompanhar</a>';
+        }
+
+        return '<div class="quotation-card">' +
+          '<div class="quotation-header">' +
+            '<div class="quotation-number">#' + q.numero + '</div>' +
+            '<span class="quotation-status ' + statusClass + '">' + statusText + '</span>' +
+          '</div>' +
+          '<div class="quotation-body">' +
+            '<h3>' + escapeHtml(q.clienteNome) + '</h3>' +
+            '<p class="quotation-dest">' + escapeHtml(q.destino) + '</p>' +
+            '<p class="quotation-dates">' + escapeHtml(q.checkIn || '') + ' - ' + escapeHtml(q.checkOut || '') + '</p>' +
+            '<p class="quotation-date-created">' + dateStr + '</p>' +
+          '</div>' +
+          '<div class="quotation-actions">' + actionsHtml + '</div>' +
+        '</div>';
+      }).join('');
+
+      container.innerHTML = html;
+    }
+
+    function copyQuotationLink(url, btn) {
+      navigator.clipboard.writeText(url).then(function() {
+        var original = btn.textContent;
+        btn.textContent = 'Copiado!';
+        setTimeout(function() { btn.textContent = original; }, 2000);
+      });
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      var div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>
