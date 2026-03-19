@@ -8,8 +8,8 @@ const puppeteer = addExtra(vanillaPuppeteer);
 puppeteer.use(StealthPlugin());
 
 const MAX_RETRIES = 3;
-const TAAP_BASE = 'https://www.expediataap.com.br';
-const TAAP_SIGNIN_URL = `${TAAP_BASE}/taap/signin`;
+const MYSNOW_BASE = 'https://www.mysnow.com.br';
+const MYSNOW_LOGIN_URL = `${MYSNOW_BASE}/login/`;
 
 /**
  * Run a promise with a timeout. Rejects if not resolved within `ms`.
@@ -42,106 +42,106 @@ function isProxyConfigured() {
 }
 
 /**
- * Check if TAAP credentials are configured
+ * Check if Mysnow credentials are configured
  */
-function isTaapConfigured() {
+function isMysnowConfigured() {
   return !!(process.env.MYSNOW_USER && process.env.MYSNOW_PASS);
 }
 
 /**
- * Login to Mysnow TAAP portal.
+ * Login to Mysnow portal (mysnow.com.br/login/).
  * Returns true if login succeeded, false otherwise.
  */
-async function loginToTaap(page) {
-  const email = process.env.MYSNOW_USER;
+async function loginToMysnow(page) {
+  const username = process.env.MYSNOW_USER;
   const password = process.env.MYSNOW_PASS;
 
-  if (!email || !password) {
-    console.log('  → ⚠ TAAP credentials not configured (MYSNOW_USER / MYSNOW_PASS)');
+  if (!username || !password) {
+    console.log('  → ⚠ Mysnow credentials not configured (MYSNOW_USER / MYSNOW_PASS)');
     return false;
   }
 
-  console.log(`  → TAAP login: navigating to signin page...`);
+  console.log(`  → Mysnow login: navigating to login page...`);
   try {
-    await page.goto(TAAP_SIGNIN_URL, { waitUntil: 'domcontentloaded', timeout: 20000 });
+    await page.goto(MYSNOW_LOGIN_URL, { waitUntil: 'domcontentloaded', timeout: 20000 });
   } catch (navErr) {
-    console.log(`  → TAAP login: navigation slow (${navErr.message}), continuing...`);
+    console.log(`  → Mysnow login: navigation slow (${navErr.message}), continuing...`);
   }
   await delay(1500 + Math.random() * 1000);
 
-  // Check if we're already logged in (no signin form)
-  const isSigninPage = await page.evaluate(() => {
+  // Check if we're already logged in (no login form)
+  const isLoginPage = await page.evaluate(() => {
     const url = window.location.href;
     const text = (document.body?.innerText || '').toLowerCase();
-    return url.includes('/signin') || (text.includes('fazer login') && text.includes('senha'));
+    return url.includes('/login') || (text.includes('conecte-se') && text.includes('senha'));
   }).catch(() => false);
 
-  if (!isSigninPage) {
-    console.log('  → TAAP login: already authenticated (no signin form)');
+  if (!isLoginPage) {
+    console.log('  → Mysnow login: already authenticated (no login form)');
     return true;
   }
 
   // Wait for form elements to render
-  console.log('  → TAAP login: waiting for form...');
+  console.log('  → Mysnow login: waiting for form...');
   try {
     await page.waitForFunction(
       () => {
-        const inputs = document.querySelectorAll('input[type="email"], input[type="text"], input[name="email"], input[id*="email"], input[id*="user"]');
+        const inputs = document.querySelectorAll('input[type="text"], input[type="email"], input[name*="user"], input[id*="user"], input[name*="login"]');
         return inputs.length > 0;
       },
       { timeout: 10000, polling: 500 }
     );
   } catch {
-    console.log('  → TAAP login: form not found, trying generic input selectors...');
+    console.log('  → Mysnow login: form not found, trying generic input selectors...');
   }
 
-  // Find and fill email field
-  console.log(`  → TAAP login: entering email (${email.substring(0, 3)}***)...`);
-  const emailFilled = await page.evaluate((emailValue) => {
-    // Try multiple selectors for the email field
+  // Find and fill username field
+  console.log(`  → Mysnow login: entering username (${username.substring(0, 5)}***)...`);
+  const userFilled = await page.evaluate((userValue) => {
+    // Try multiple selectors for the username field
     const selectors = [
-      'input[type="email"]',
-      'input[name="email"]',
-      'input[id*="email"]',
+      'input[name*="user"]',
       'input[id*="user"]',
-      'input[name="username"]',
-      'input[autocomplete="email"]',
+      'input[name*="login"]',
+      'input[id*="login"]',
+      'input[type="text"]',
+      'input[type="email"]',
       'input[autocomplete="username"]',
     ];
 
     for (const sel of selectors) {
       const input = document.querySelector(sel);
-      if (input) {
+      if (input && input.type !== 'hidden') {
         input.focus();
-        input.value = emailValue;
+        input.value = userValue;
         input.dispatchEvent(new Event('input', { bubbles: true }));
         input.dispatchEvent(new Event('change', { bubbles: true }));
         return sel;
       }
     }
 
-    // Fallback: first text/email-like input on the page
-    const allInputs = document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="checkbox"])');
+    // Fallback: first visible text input on the page
+    const allInputs = document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="checkbox"]):not([type="password"])');
     if (allInputs.length > 0) {
       allInputs[0].focus();
-      allInputs[0].value = emailValue;
+      allInputs[0].value = userValue;
       allInputs[0].dispatchEvent(new Event('input', { bubbles: true }));
       allInputs[0].dispatchEvent(new Event('change', { bubbles: true }));
       return 'fallback-first-input';
     }
 
     return null;
-  }, email).catch(() => null);
+  }, username).catch(() => null);
 
-  if (!emailFilled) {
-    console.log('  → TAAP login: could not find email field');
+  if (!userFilled) {
+    console.log('  → Mysnow login: could not find username field');
     return false;
   }
-  console.log(`  → TAAP login: email entered (selector: ${emailFilled})`);
+  console.log(`  → Mysnow login: username entered (selector: ${userFilled})`);
   await delay(500 + Math.random() * 500);
 
   // Find and fill password field
-  console.log('  → TAAP login: entering password...');
+  console.log('  → Mysnow login: entering password...');
   const passFilled = await page.evaluate((passValue) => {
     const input = document.querySelector('input[type="password"]');
     if (input) {
@@ -155,22 +155,32 @@ async function loginToTaap(page) {
   }, password).catch(() => false);
 
   if (!passFilled) {
-    console.log('  → TAAP login: could not find password field');
+    console.log('  → Mysnow login: could not find password field');
     return false;
   }
-  console.log('  → TAAP login: password entered');
+  console.log('  → Mysnow login: password entered');
   await delay(500 + Math.random() * 500);
 
+  // Check terms checkbox if present (Mysnow requires accepting terms)
+  await page.evaluate(() => {
+    const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+    for (const cb of checkboxes) {
+      if (!cb.checked) {
+        cb.click();
+      }
+    }
+  }).catch(() => {});
+  await delay(300);
+
   // Click submit button
-  console.log('  → TAAP login: submitting form...');
+  console.log('  → Mysnow login: submitting form...');
   const submitted = await page.evaluate(() => {
     // Try multiple selectors for the submit button
     const selectors = [
       'button[type="submit"]',
       'input[type="submit"]',
-      'button[data-stid="login-button"]',
       'button[id*="login"]',
-      'button[id*="signin"]',
+      'button[id*="acessar"]',
     ];
 
     for (const sel of selectors) {
@@ -181,13 +191,13 @@ async function loginToTaap(page) {
       }
     }
 
-    // Fallback: find button with login text
-    const buttons = document.querySelectorAll('button');
+    // Fallback: find button with "Acessar" or login text
+    const buttons = document.querySelectorAll('button, a.btn, input[type="button"]');
     for (const btn of buttons) {
-      const text = (btn.textContent || '').toLowerCase();
-      if (text.includes('login') || text.includes('entrar') || text.includes('fazer login') || text.includes('sign in')) {
+      const text = (btn.textContent || btn.value || '').toLowerCase().trim();
+      if (text.includes('acessar') || text.includes('login') || text.includes('entrar')) {
         btn.click();
-        return 'fallback-text-match';
+        return 'fallback-text-match: ' + text.substring(0, 20);
       }
     }
 
@@ -196,19 +206,19 @@ async function loginToTaap(page) {
 
   if (!submitted) {
     // Try pressing Enter on the password field as fallback
-    console.log('  → TAAP login: no submit button found, pressing Enter...');
+    console.log('  → Mysnow login: no submit button found, pressing Enter...');
     await page.keyboard.press('Enter');
   } else {
-    console.log(`  → TAAP login: form submitted (selector: ${submitted})`);
+    console.log(`  → Mysnow login: form submitted (selector: ${submitted})`);
   }
 
   // Wait for navigation after login
-  console.log('  → TAAP login: waiting for authentication...');
+  console.log('  → Mysnow login: waiting for authentication...');
   try {
     await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 20000 });
   } catch {
     // Navigation might not trigger if it's SPA-style
-    console.log('  → TAAP login: no hard navigation, checking page state...');
+    console.log('  → Mysnow login: no hard navigation, checking page state...');
     await delay(3000);
   }
 
@@ -216,24 +226,25 @@ async function loginToTaap(page) {
   const loginResult = await page.evaluate(() => {
     const url = window.location.href;
     const text = (document.body?.innerText || '').toLowerCase();
-    const isStillSignin = url.includes('/signin') && (text.includes('fazer login') || text.includes('sign in'));
+    const isStillLogin = url.includes('/login') && (text.includes('conecte-se') || text.includes('senha'));
     const hasError = text.includes('senha incorreta') || text.includes('invalid') ||
-                     text.includes('incorrect') || text.includes('erro') ||
-                     text.includes('falha') || text.includes('failed');
-    return { url, isStillSignin, hasError, title: document.title };
-  }).catch(() => ({ url: '', isStillSignin: true, hasError: false, title: '' }));
+                     text.includes('incorrect') || text.includes('usuário ou senha') ||
+                     text.includes('falha') || text.includes('failed') ||
+                     text.includes('you must fill');
+    return { url, isStillLogin, hasError, title: document.title };
+  }).catch(() => ({ url: '', isStillLogin: true, hasError: false, title: '' }));
 
   if (loginResult.hasError) {
-    console.log(`  → TAAP login: ⚠ login failed (credentials error). URL: ${loginResult.url}`);
+    console.log(`  → Mysnow login: ⚠ login failed (credentials error). URL: ${loginResult.url}`);
     return false;
   }
 
-  if (loginResult.isStillSignin) {
-    console.log(`  → TAAP login: ⚠ still on signin page. Title: "${loginResult.title}"`);
+  if (loginResult.isStillLogin) {
+    console.log(`  → Mysnow login: ⚠ still on login page. Title: "${loginResult.title}"`);
     return false;
   }
 
-  console.log(`  → TAAP login: ✓ authenticated! URL: ${loginResult.url}`);
+  console.log(`  → Mysnow login: ✓ authenticated! URL: ${loginResult.url}`);
   return true;
 }
 
@@ -357,12 +368,12 @@ async function searchMysnow(params) {
       // NOTE: We intentionally do NOT use setRequestInterception — it is detectable
       // by anti-bot systems and contributes to being flagged. Let all resources load naturally.
 
-      // ── TAAP Login ──
-      // The TAAP portal requires authentication. Login before searching.
-      if (isTaapConfigured()) {
-        const loginOk = await loginToTaap(page);
+      // ── Mysnow Login ──
+      // The Mysnow portal requires authentication. Login before searching.
+      if (isMysnowConfigured()) {
+        const loginOk = await loginToMysnow(page);
         if (!loginOk) {
-          console.log(`  → ⚠ TAAP login failed (attempt ${attempt}/${MAX_RETRIES})`);
+          console.log(`  → ⚠ Mysnow login failed (attempt ${attempt}/${MAX_RETRIES})`);
           await browser.close();
           if (attempt < MAX_RETRIES) {
             const backoff = 3000 + Math.random() * 5000;
@@ -374,14 +385,14 @@ async function searchMysnow(params) {
           return [];
         }
       } else {
-        // No TAAP credentials — visit homepage and hope for the best
-        console.log('  → Warm-up: visiting TAAP homepage (no credentials configured)...');
+        // No Mysnow credentials — visit homepage and hope for the best
+        console.log('  → Warm-up: visiting Mysnow homepage (no credentials configured)...');
         try {
-          await page.goto(`${TAAP_BASE}/`, { waitUntil: 'domcontentloaded', timeout: 15000 });
+          await page.goto(`${MYSNOW_BASE}/`, { waitUntil: 'domcontentloaded', timeout: 15000 });
         } catch (navErr) {
           console.log(`  → Warm-up navigation slow (${navErr.message}), continuing anyway...`);
         }
-        console.log('  → ⚠ No TAAP credentials — set MYSNOW_USER and MYSNOW_PASS env vars');
+        console.log('  → ⚠ No Mysnow credentials — set MYSNOW_USER and MYSNOW_PASS env vars');
       }
       await delay(800 + Math.random() * 700);
 
@@ -407,35 +418,29 @@ async function searchMysnow(params) {
       try { await withTimeout(simulateMouseMovement(page), 3000, 'mouse movement'); } catch {}
       console.log('  → Ready to search');
 
-      // Navigate to Mysnow Hotel-Search
+      // Navigate to Mysnow Hotel Search
       const searchUrl = buildSearchUrl(destino, checkIn, checkOut, adultos, criancas, idadesCriancas);
       console.log('  → Navigating to:', searchUrl);
 
-      // Use domcontentloaded instead of networkidle2 — Mysnow has persistent
-      // connections (analytics, websockets, ads) that prevent networkidle2 from
-      // resolving for 30-60s. The API interceptor captures data as it arrives.
-      // Wrap in try/catch — timeout doesn't mean failure, the SPA continues loading.
       let navResponse;
       try {
         navResponse = await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
       } catch (navErr) {
-        console.log(`  → Navigation slow (${navErr.message}), continuing — SPA may still load...`);
+        console.log(`  → Navigation slow (${navErr.message}), continuing...`);
       }
       const httpStatus = navResponse?.status() || 0;
       console.log(`  → Page URL: ${page.url()} (HTTP ${httpStatus || 'timeout'})`);
 
-      // HTTP 407 = proxy authentication rejected
       if (httpStatus === 407) {
         console.log('  → ⚠ HTTP 407: Proxy authentication failed');
         await browser.close();
         return [];
       }
 
-      // Check if redirected back to signin (login session expired or failed)
+      // Check if redirected back to login
       const currentUrl = page.url();
-      if (currentUrl.includes('/signin') || currentUrl.includes('/login')) {
+      if (currentUrl.includes('/login')) {
         console.log(`  → ⚠ Redirected to login page: ${currentUrl}`);
-        console.log('  → TAAP session not established — login may have failed');
         await browser.close();
         if (attempt < MAX_RETRIES) {
           const backoff = 3000 + Math.random() * 5000;
@@ -443,95 +448,163 @@ async function searchMysnow(params) {
           await delay(backoff);
           continue;
         }
-        console.log('  → All login attempts failed');
         return [];
       }
 
-      // Wait for SPA hydration — Mysnow is a Next.js app, the initial HTML is
-      // an empty shell. We must wait for JavaScript to render actual content.
-      console.log('  → Waiting for SPA hydration...');
+      // Wait for hotel search form to render
+      console.log('  → Waiting for search form...');
       try {
         await page.waitForFunction(
-          () => (document.title || '').length > 0 || (document.body?.innerText || '').length > 100,
+          () => (document.body?.innerText || '').length > 100,
           { timeout: 15000, polling: 500 }
         );
-        console.log('  → Page rendered, title:', await page.title().catch(() => '(unknown)'));
       } catch {
         console.log('  → Page did not render within 15s, continuing...');
       }
 
-      // Check for blank page (soft block) or CAPTCHA — both mean we're blocked
-      const postTitle = await page.title().catch(() => '');
-      const postBodyLen = await page.evaluate(() => (document.body?.innerText || '').trim().length).catch(() => 0);
+      // ── Fill the Mysnow hotel search form ──
+      console.log(`  → Filling search form: ${destino}, ${checkIn} → ${checkOut}, ${adultos} adults`);
 
-      let isBlocked = false;
-      let blockReason = '';
-
-      // Soft block: Mysnow serves a completely blank page instead of a CAPTCHA
-      if (!postTitle && postBodyLen < 50) {
-        isBlocked = true;
-        blockReason = 'blank page (soft block)';
-        const rawHtml = await page.content().catch(() => '');
-        console.log(`  → ⚠ Blank page detected — HTML length: ${rawHtml.length}`);
-        console.log(`  → Raw HTML preview: ${rawHtml.substring(0, 300)}`);
-        console.log(`  → Final URL: ${page.url()}, HTTP ${httpStatus}`);
-      }
-
-      // Hard block: CAPTCHA page with challenge text
-      if (!isBlocked) {
-        try { isBlocked = await withTimeout(isCaptchaPage(page), 5000, 'search CAPTCHA check'); } catch {}
-        if (isBlocked) blockReason = 'CAPTCHA';
-      }
-
-      if (isBlocked) {
-        console.log(`  → ⚠ Blocked (${blockReason}) on attempt ${attempt}/${MAX_RETRIES}`);
-        await browser.close();
-        browser = null;
-        if (attempt < MAX_RETRIES) {
-          const backoff = 3000 + Math.random() * 5000;
-          console.log(`  → Retrying in ${Math.round(backoff / 1000)}s with new proxy port...`);
-          await delay(backoff);
-          continue;
+      // Fill destination
+      await page.evaluate((dest) => {
+        const selectors = [
+          'input[name*="dest"]', 'input[id*="dest"]',
+          'input[name*="city"]', 'input[id*="city"]',
+          'input[placeholder*="destino"]', 'input[placeholder*="cidade"]',
+          'input[placeholder*="hotel"]',
+          'input[type="text"]',
+        ];
+        for (const sel of selectors) {
+          const input = document.querySelector(sel);
+          if (input) {
+            input.focus();
+            input.value = '';
+            input.value = dest;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+            input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+            return sel;
+          }
         }
-        console.log(`  → All ${MAX_RETRIES} attempts blocked`);
-        return [];
+        return null;
+      }, destino).catch(() => null);
+
+      await delay(2000); // Wait for autocomplete suggestions
+
+      // Select first autocomplete suggestion if present
+      await page.evaluate(() => {
+        const suggestions = document.querySelectorAll(
+          '.autocomplete-suggestion, .ui-menu-item, [role="option"], .suggestion-item, .dropdown-item, li[class*="suggestion"], li[class*="result"]'
+        );
+        if (suggestions.length > 0) {
+          suggestions[0].click();
+          return true;
+        }
+        // Try pressing Enter to confirm
+        return false;
+      }).catch(() => false);
+      await delay(500);
+
+      // Fill check-in date (format: DD/MM/YYYY for Brazilian sites)
+      const formatDateBR = (dateStr) => {
+        const [y, m, d] = dateStr.split('-');
+        return `${d}/${m}/${y}`;
+      };
+
+      await page.evaluate((checkInBR, checkOutBR) => {
+        // Find date inputs
+        const inputs = document.querySelectorAll('input[type="text"], input[type="date"], input[name*="date"], input[name*="checkin"], input[name*="checkout"], input[id*="date"], input[id*="checkin"], input[id*="checkout"]');
+        const dateInputs = Array.from(inputs).filter(i => {
+          const ph = (i.placeholder || '').toLowerCase();
+          const nm = (i.name || '').toLowerCase();
+          const id = (i.id || '').toLowerCase();
+          return ph.includes('dd/mm') || ph.includes('data') || ph.includes('check') ||
+                 nm.includes('date') || nm.includes('check') ||
+                 id.includes('date') || id.includes('check');
+        });
+
+        if (dateInputs.length >= 2) {
+          // First = check-in, second = check-out
+          [checkInBR, checkOutBR].forEach((val, idx) => {
+            const input = dateInputs[idx];
+            input.focus();
+            input.value = val;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+          });
+        }
+      }, formatDateBR(checkIn), formatDateBR(checkOut)).catch(() => {});
+      await delay(500);
+
+      // Click search/confirm button
+      console.log('  → Submitting search...');
+      const searchSubmitted = await page.evaluate(() => {
+        const selectors = [
+          'button[type="submit"]',
+          'input[type="submit"]',
+          'button[id*="search"]',
+          'button[id*="confirm"]',
+        ];
+        for (const sel of selectors) {
+          const btn = document.querySelector(sel);
+          if (btn) { btn.click(); return sel; }
+        }
+        // Fallback: find button by text
+        const buttons = document.querySelectorAll('button, a.btn, input[type="button"]');
+        for (const btn of buttons) {
+          const text = (btn.textContent || btn.value || '').toLowerCase().trim();
+          if (text.includes('confirmar') || text.includes('buscar') || text.includes('pesquisar') || text.includes('search')) {
+            btn.click();
+            return 'text: ' + text.substring(0, 20);
+          }
+        }
+        return null;
+      }).catch(() => null);
+      console.log(`  → Search submitted: ${searchSubmitted || 'no button found'}`);
+
+      // Wait for search results to load
+      if (searchSubmitted) {
+        try {
+          await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 });
+        } catch {
+          await delay(5000);
+        }
       }
 
-      // Wait for hotel results — prioritize GraphQL API intercept over DOM.
-      // The TAAP portal fires a GraphQL request that returns all hotel data with
-      // prices, ratings, and detail URLs. DOM cards appear first but have less data.
-      console.log('  → Waiting for search results (API + DOM)...');
+      // Wait for hotel results to appear
+      console.log('  → Waiting for search results...');
       const waitStart = Date.now();
-      const MAX_WAIT = 40000; // 40s — TAAP can be slow, especially through proxy
+      const MAX_WAIT = 45000;
       const POLL_INTERVAL = 1000;
       let domCardsDetected = false;
 
       while ((Date.now() - waitStart) < MAX_WAIT) {
-        // Check if API interceptor got results — this is the best source
         if (apiResults.length > 0) {
           console.log(`  → API intercepted ${apiResults.length} hotels, waiting 3s for more...`);
-          await delay(3000); // Let additional API responses arrive
+          await delay(3000);
           break;
         }
 
-        // Check DOM cards as a progress indicator (not as final data source)
         if (!domCardsDetected) {
-          const hasCards = await page.evaluate(() =>
-            document.querySelectorAll(
-              '[data-stid="property-listing"], [data-testid="property-card"], .uitk-card-content-section'
-            ).length > 0
-          ).catch(() => false);
+          const hasCards = await page.evaluate(() => {
+            const text = (document.body?.innerText || '').toLowerCase();
+            // Mysnow hotel cards — look for price patterns and hotel-like content
+            const hasPrices = (text.match(/r\$/g) || []).length >= 2;
+            const hasHotelContent = text.includes('hotel') || text.includes('quarto') ||
+                                    text.includes('diária') || text.includes('noite');
+            // Also check for common hotel card selectors
+            const cards = document.querySelectorAll(
+              '.hotel-card, .hotel-item, .hotel-result, [class*="hotel"], [class*="property"], [class*="result-item"], .card'
+            );
+            return (hasPrices && hasHotelContent) || cards.length >= 2;
+          }).catch(() => false);
+
           if (hasCards) {
             domCardsDetected = true;
-            console.log('  → Hotel cards detected in DOM, waiting for API data...');
-            // Don't break — keep waiting for the GraphQL response which has full data
+            console.log('  → Hotel results detected in DOM');
+            await delay(3000); // Let more results load
+            break;
           }
-        }
-
-        // If DOM cards appeared 10s ago and still no API data, give up on API
-        if (domCardsDetected && (Date.now() - waitStart) > 15000) {
-          console.log('  → DOM cards present but no API data after 15s, proceeding with DOM...');
-          break;
         }
 
         await delay(POLL_INTERVAL);
@@ -724,23 +797,12 @@ async function simulateHumanScroll(page) {
 }
 
 /**
- * Build public Mysnow Hotel-Search URL
+ * Build Mysnow hotel search URL.
+ * Mysnow requires login first, then navigates to /hotels/ to fill the form.
+ * This returns the hotels page URL — actual search is done via form interaction.
  */
 function buildSearchUrl(destino, checkIn, checkOut, adultos, criancas, idadesCriancas) {
-  const params = new URLSearchParams({
-    destination: destino,
-    startDate: checkIn,
-    endDate: checkOut,
-    rooms: '1',
-    adults: String(adultos || 2),
-    sort: 'RECOMMENDED',
-  });
-
-  if (criancas > 0 && idadesCriancas?.length) {
-    params.set('children', idadesCriancas.join(','));
-  }
-
-  return `https://www.expediataap.com.br/Hotel-Search?${params}`;
+  return `${MYSNOW_BASE}/hotels/`;
 }
 
 /**
@@ -751,20 +813,21 @@ function buildDetailUrl(detailUrl, hotelId, checkIn, checkOut, adultos) {
 
   let url;
   if (detailUrl) {
-    url = detailUrl.startsWith('http') ? detailUrl : `https://www.expediataap.com.br${detailUrl}`;
+    url = detailUrl.startsWith('http') ? detailUrl : `${MYSNOW_BASE}${detailUrl}`;
+  } else if (hotelId) {
+    url = `${MYSNOW_BASE}/hotels/detail/${hotelId}`;
   } else {
-    url = `https://www.expediataap.com.br/h${hotelId}.Hotel-Information`;
+    return '';
   }
 
   try {
     const parsed = new URL(url);
-    parsed.searchParams.set('chkin', checkIn);
-    parsed.searchParams.set('chkout', checkOut);
-    parsed.searchParams.set('adults', String(adultos || 2));
-    parsed.searchParams.set('rooms', '1');
+    if (checkIn) parsed.searchParams.set('checkin', checkIn);
+    if (checkOut) parsed.searchParams.set('checkout', checkOut);
+    if (adultos) parsed.searchParams.set('adults', String(adultos || 2));
     return parsed.toString();
   } catch {
-    return '';
+    return url;
   }
 }
 
